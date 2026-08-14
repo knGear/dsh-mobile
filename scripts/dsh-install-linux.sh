@@ -109,6 +109,22 @@ EOF
 chmod +x "$PREFIX/bin/dsh-web"
 echo "$P 已生成启动命令: dsh-web"
 
+# dsh wrapper (proot 内): npm 装的 bin.js 不带 --expose-internals,
+# 直接 `dsh web` 时解析不到 ~/.dsh 本地插件 → 替换成显式传参的 wrapper。
+# ⚠ npm 更新 @deepseek-ai/dsh 后 /usr/local/bin/dsh 会被 symlink 覆盖, 需重放。
+proot-distro login ubuntu -- bash -c '
+  set -e
+  DSH_REAL=$(readlink -f /usr/local/bin/dsh 2>/dev/null || true)
+  if [ -z "$DSH_REAL" ]; then DSH_REAL="/usr/local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js"; fi
+  cat > /usr/local/bin/dsh <<WRAP
+#!/bin/sh
+# dsh wrapper (proot) — npm 更新 dsh 后需重放
+exec node --expose-internals "$DSH_REAL" "$@"
+WRAP
+  chmod +x /usr/local/bin/dsh
+  echo "  已生成 dsh wrapper (--expose-internals)"
+' 
+
 # 试启动探测 (自动退出, 不影响结果)
 echo "$P 试启动 dsh web 探测端口 3080..."
 proot-distro login ubuntu -- timeout 25 dsh web >/dev/null 2>&1 &

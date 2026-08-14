@@ -89,8 +89,18 @@ else
   echo "       验证: cd ~ && touch t1 && ln t1 t2 && echo OK"
 fi
 
-# ---------- 6. 生成启动命令 dsh-web ----------
-echo "$P 6/9 生成启动命令 dsh-web ..."
+# ---------- 6. 生成启动命令 dsh-web + dsh wrapper ----------
+echo "$P 6/9 生成启动命令 dsh-web + dsh wrapper ..."
+# dsh wrapper: npm 装的 bin.js shebang 不带 --expose-internals,
+# 直接 `dsh web` 时 cordis-plugin-loader 解析不到本地插件 → 必须显式传参。
+# ⚠ npm 更新 @deepseek-ai/dsh 后 /usr/bin/dsh 会被 symlink 覆盖, 需重放本 wrapper。
+cat > "$PREFIX/bin/dsh" <<WRAP
+#!/data/data/com.termux/files/usr/bin/bash
+# dsh wrapper (Termux 原生) — npm 更新 dsh 后此文件会被覆盖, 重放: bash $PREFIX/bin/dsh 安装脚本第6步
+BIN=$PREFIX/lib/node_modules/@deepseek-ai/dsh/lib/bin.js
+exec node --expose-internals "\$BIN" "\$@"
+WRAP
+chmod +x "$PREFIX/bin/dsh"
 cat > "$PREFIX/bin/dsh-web" <<EOF
 #!/data/data/com.termux/files/usr/bin/bash
 # dsh-web: 快速启动 DeepSeek Harness Web UI (Termux 原生)

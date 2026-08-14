@@ -64,6 +64,9 @@ npm i -g @deepseek-ai/dsh
 dsh web
 ```
 
+> ⚠ npm 直装的 dsh 直接跑 `dsh web` 可能加载不到本地插件（bin.js 缺 `--expose-internals`）。
+> 两个安装脚本会自动生成 dsh wrapper 解决；手动环境可让 AI 按仓库脚本处理。
+
 然后安装移动端插件，按你的平台选一个（任选其一，重复运行 = 更新到最新版）：
 
 **bash 版（Linux / macOS / Termux）：**
