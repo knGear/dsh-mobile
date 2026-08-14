@@ -43,3 +43,4 @@ DeepSeek Harness（dsh）的 Android 移动前端，三部分：
 
 - **顶部元素修改**：会话头部整理——去掉 Session log 按钮、把 agent 预设 + 后台任务按钮移到"对话/轨迹"选项卡行（结构已诊断：slot 出口包一层 div，header 定位法见 docs/plugin-mobile-ui.md DOM 锚点表；之前因插件加载问题搁置，wrapper 修复后根因已除）
 - **底部元素修改**：状态行（x轮x步）两行化/去空格/左对齐——方案已设计（组 span 计数 + br 插入 + dataset 幂等标记），此前撤销，可重做
+- **右上角运行状态入口（对话 x/x）**：Session log 位置替换为"对话 运行中/完成"按钮，点开展开面板（运行中置顶点击跳转不注销；完成项 ×仅注销 / 点本体注销+跳转）；完成横幅在状态区弹出。host 基础设施已就绪（`/api/dsh-session-status` GET 快照 / POST ?removeDone= + `dsh-notify/sessions` 事件 + runningSessions/doneSessions 集合），client UI 已撤销待重做。教训：client 改动页面必须刷新才可见；dsh-web-restart 杀进程逻辑不可靠（旧进程占端口致"假重启"），彻底重启需"杀光所有 + 等端口释放"

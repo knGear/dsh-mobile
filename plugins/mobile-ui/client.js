@@ -535,6 +535,55 @@ window.__ModuleLoader__.load({
       )
     }
 
+    // ── 页面内横幅通知(右上角): host 推送结果横幅事件, 点击跳对应会话, 自动消失 ──
+    // 常驻通知(运行中)不显示, 只显示结果类: complete/question/truncated/error/tool
+    var BANNER_NS = 'dsh-ui-banner'
+
+    function showPageBanner(data) {
+      try {
+        if (!data || !data.title) return
+        var host = document.getElementById(BANNER_NS)
+        if (!host) {
+          host = document.createElement('div')
+          host.id = BANNER_NS
+          host.style.cssText =
+            'position:fixed;top:12px;right:12px;z-index:9999;display:flex;flex-direction:column;' +
+            'gap:8px;max-width:min(320px,calc(100vw - 24px));pointer-events:none;'
+          document.body.appendChild(host)
+        }
+        var colors = { complete: '#4caf50', truncated: '#ff9800', error: '#e06c6c', question: '#4f7cff', tool: '#4f7cff' }
+        var card = document.createElement('div')
+        card.style.cssText =
+          'pointer-events:auto;display:flex;align-items:flex-start;gap:8px;cursor:pointer;' +
+          'background:var(--dsw-alias-bg-layer-1, #1a1a24);border:1px solid var(--dsw-alias-border-l1, #2a2a36);' +
+          'border-left:3px solid ' + (colors[data.kind] || '#888') + ';border-radius:8px;' +
+          'padding:10px 12px;box-shadow:0 4px 16px rgba(0,0,0,0.4);'
+        var textBox = document.createElement('div')
+        textBox.style.cssText = 'min-width:0;flex:1;'
+        var t = document.createElement('div')
+        t.textContent = data.title
+        t.style.cssText = 'font-size:13px;font-weight:600;color:var(--dsw-alias-label-primary, #e6e6ef);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'
+        var b = document.createElement('div')
+        b.textContent = data.body || ''
+        b.style.cssText = 'font-size:12px;color:var(--dsw-alias-label-secondary, #a8a8b8);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;'
+        textBox.appendChild(t)
+        textBox.appendChild(b)
+        var close = document.createElement('button')
+        close.textContent = '×'
+        close.setAttribute('aria-label', '关闭通知')
+        close.style.cssText = 'flex:none;border:none;background:none;color:var(--dsw-alias-label-tertiary, #888);font-size:16px;line-height:1;cursor:pointer;padding:2px;'
+        close.onclick = function (e) { e.stopPropagation(); card.remove() }
+        card.appendChild(textBox)
+        card.appendChild(close)
+        card.onclick = function () { if (data.url) window.location.href = data.url }
+        host.appendChild(card)
+        // 堆叠上限 3 条
+        while (host.children.length > 3) host.removeChild(host.firstChild)
+        // 8s 自动消失
+        setTimeout(function () { card.remove() }, 8000)
+      } catch (e) { /* 忽略 */ }
+    }
+
     // ── 插件入口 ─────────────────────────────────────────────
 
     function apply(ctx) {
@@ -595,6 +644,11 @@ window.__ModuleLoader__.load({
         if (observer) observer.disconnect()
         window.removeEventListener('resize', onResize)
       })
+
+      // ── 页面内横幅通知: 监听 host 推送(结果横幅), 右上角浮窗, 点击跳会话 ──
+      try {
+        if (ctx.on) ctx.on('dsh-notify/banner', showPageBanner)
+      } catch (e) { /* 忽略 */ }
 
       // ── 以下为可选增强: slots 注册/设置适配 CSS, 失败不影响布局 ──
       try {
