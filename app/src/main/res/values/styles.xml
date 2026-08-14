@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 深色主题: 状态栏可见, 与 dsh 页面底色 #151517 一体化 -->
+    <style name="ShellTheme" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:statusBarColor">#151517</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:navigationBarColor">#151517</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowBackground">#151517</item>
+    </style>
+</resources>

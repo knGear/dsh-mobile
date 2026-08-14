@@ -1,0 +1,9 @@
+# 移动前端本地插件(非 npm 包, 位于 ~/.dsh/profiles/node_modules/):
+#   mobile-AndroidNotify(通知+跳转) / mobile-ui(移动设置+重启按钮)
+# ⚠ 带 client 的包 exports 必须含 "." 与 "./package.json"
+# ⚠ id 全树唯一; 用 mobile- 前缀避免与上游裸 id(ui/notify)撞名
+- insert:
+    - id: mobile-notify
+      name: 'mobile-AndroidNotify'
+    - id: mobile-ui
+      name: 'mobile-ui'

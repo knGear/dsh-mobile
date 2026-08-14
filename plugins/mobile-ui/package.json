@@ -1,0 +1,19 @@
+{
+  "name": "mobile-ui",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "index.js",
+  "description": "移动前端 UI 插件: 移动设置(连接地址/紧凑模式/安全区/重启) + 重启按钮",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "inject": ["slots", "layout"],
+      "platform": "web",
+      "immediately": true
+    }
+  }
+}

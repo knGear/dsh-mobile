@@ -1,0 +1,6 @@
+out/
+*.apk
+_shot.png
+ui-baseline/
+AGENT.md
+mem.md
