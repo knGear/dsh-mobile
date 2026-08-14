@@ -129,6 +129,10 @@ plugins/
 
 - **v0.01** — 首个公开版
 
+## Credits
+
+本程序使用 **DeepSeek Pro / DeepSeek Flash** 进行构建（DeepSeek Harness agent 辅助开发）。
+
 ## License
 
 MIT © knGear
