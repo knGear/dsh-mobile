@@ -1,15 +1,17 @@
 #!/bin/bash
 # DSH Web 壳 APK 构建 —— 在 proot Debian 中运行
 # 混合构建: aapt(资源) + javac + d8 + apksigner (box64 无 AAPT2 时的标准流程)
+# 从仓库目录运行即可(路径相对化, 发布构建以仓库源码为准)
 set -e
-SRC=/sdcard/1tui/apk/dsh/app/src/main
+DIR="$(cd "$(dirname "$0")" && pwd)"
+SRC="$DIR/app/src/main"
 BUILD=/root/dsh-build
 SDK=/root/android-sdk
 JAR=$SDK/platforms/android-34/android.jar
 D8=$SDK/cmdline-tools/cmdline-tools/bin/d8
 # release keystore(随仓库提交, 稳定签名; 密码 dshmobile123 / alias dshmobile)
-KS=/sdcard/1tui/apk/dsh/release.keystore
-OUT=/sdcard/1tui/apk/dsh/out
+KS="$DIR/release.keystore"
+OUT="$DIR/out"
 
 rm -rf "$BUILD"
 mkdir -p "$BUILD/gen" "$BUILD/classes" "$OUT"
