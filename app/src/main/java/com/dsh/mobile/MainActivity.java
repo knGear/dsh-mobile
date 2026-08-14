@@ -1,10 +1,12 @@
 package com.dsh.mobile;
 
 import android.app.Activity;
+import android.Manifest;
 import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
@@ -255,6 +257,13 @@ public class MainActivity extends Activity {
         }, "AndroidShell");
 
         webView.loadUrl(initialUrl());
+
+        // 初始化索要通知权限(Android 13+): 通知推送(会话状态/完成提醒)依赖此授权
+        if (Build.VERSION.SDK_INT >= 33) {
+            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 1001);
+            }
+        }
     }
 
     // 全面屏(edge-to-edge)开关: 开=内容绘制到系统栏后面(insets 监听负责内边距+偏移);

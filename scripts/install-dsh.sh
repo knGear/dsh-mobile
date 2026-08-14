@@ -42,7 +42,7 @@ echo "$P 4/7 安装 @deepseek-ai/dsh (全局)..."
 proot-distro login debian -- npm i -g @deepseek-ai/dsh
 
 # ---------- 5. 校验/修补原生模块 ----------
-echo "$P 5/7 校验原生模块 (koffi / node-pty / sharp)..."
+echo "$P 5/8 校验原生模块 (koffi / node-pty / sharp)..."
 proot-distro login debian -- bash -c '
   set -e
   D=/usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules
@@ -58,7 +58,7 @@ proot-distro login debian -- bash -c '
 '
 
 # ---------- 6. SELinux hardlink 修复 (Android 16 的坑) ----------
-echo "$P 6/7 检测 SELinux hardlink 限制..."
+echo "$P 6/8 检测 SELinux hardlink 限制..."
 HAS_ROOT=0
 if command -v su >/dev/null 2>&1 && su -c id >/dev/null 2>&1; then HAS_ROOT=1; fi
 
@@ -98,7 +98,7 @@ else
 fi
 
 # ---------- 7. 验证 + 启动器 ----------
-echo "$P 7/7 验证 dsh..."
+echo "$P 7/8 验证 dsh..."
 proot-distro login debian -- dsh --version
 
 # 启动器命令 (Termux 里直接输 dsh-web)
@@ -125,4 +125,45 @@ echo "================ 安装完成 ================"
 echo "启动:   dsh-web         (Termux 里直接执行)"
 echo "访问:   手机浏览器打开 http://127.0.0.1:3080  填 API key"
 echo "升级:   proot-distro login debian -- npm i -g @deepseek-ai/dsh@latest"
+echo "插件:   已随本脚本装好 (mobile-ui / mobile-AndroidNotify), 重启 dsh 后生效"
 echo "==========================================="
+
+# ---------- 8. 安装移动端插件 (dsh-mobile 仓库) ----------
+echo "$P 8/8 安装移动端插件 (mobile-ui / mobile-AndroidNotify)..."
+PLUGIN_DIR="$HOME/.dsh/profiles/node_modules"
+PATCH_FILE="$HOME/.dsh/profiles/web/cordis.patch.yml"
+BASE="https://raw.githubusercontent.com/knGear/dsh-mobile/main/plugins"
+mkdir -p "$PLUGIN_DIR/mobile-ui" "$PLUGIN_DIR/mobile-AndroidNotify" "$(dirname "$PATCH_FILE")"
+for name in mobile-ui mobile-AndroidNotify; do
+  for f in index.js client.js package.json; do
+    if curl -fsSL -o "$PLUGIN_DIR/$name/$f" "$BASE/$name/$f"; then
+      echo "  $name/$f ✓"
+    else
+      echo "  $name/$f 下载失败 ⚠️"
+    fi
+  done
+done
+# cordis.patch.yml 挂载(不存在则创建, 存在则按 id 去重追加)
+if [ ! -f "$PATCH_FILE" ]; then
+  cat > "$PATCH_FILE" <<'PATCH'
+# 移动端本地插件
+- insert:
+    - id: mobile-notify
+      name: 'mobile-AndroidNotify'
+    - id: mobile-ui
+      name: 'mobile-ui'
+PATCH
+  echo "  已生成 $PATCH_FILE"
+else
+  for id in mobile-notify mobile-ui; do
+    if ! grep -q "id: $id" "$PATCH_FILE"; then
+      case $id in
+        mobile-notify) pname='mobile-AndroidNotify' ;;
+        *) pname='mobile-ui' ;;
+      esac
+      printf '\n- insert:\n    - id: %s\n      name: %s\n' "$id" "$pname" >> "$PATCH_FILE"
+      echo "  已挂载 $id"
+    fi
+  done
+fi
+echo "  插件就绪(重启 dsh 后生效)"
