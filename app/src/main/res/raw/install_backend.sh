@@ -47,7 +47,6 @@ cat > "$BIN_DIR/dsh-web" <<'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
 BIN=/data/data/com.termux/files/usr/lib/node_modules/@deepseek-ai/dsh/lib/bin.js
 LOG="$HOME/.cache/dsh-web.log"
-[ -d /sdcard/1tui ] && cd /sdcard/1tui
 if curl -s -o /dev/null --max-time 2 http://127.0.0.1:3080/; then
   echo "dsh web 已在运行"
 else

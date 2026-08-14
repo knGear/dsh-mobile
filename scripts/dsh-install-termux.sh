@@ -125,7 +125,7 @@ URL="http://127.0.0.1:\$PORT"
 LOG="\$HOME/.cache/dsh-web.log"
 
 # 引导到工作区 (存在则以它为会话默认 cwd)
-for W in /sdcard/1tui "\$HOME"; do
+for W in "\$HOME"; do
   if [ -d "\$W" ]; then cd "\$W"; break; fi
 done
 

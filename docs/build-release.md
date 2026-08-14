@@ -3,7 +3,7 @@
 ## 构建 APK（proot Debian 内）
 
 ```bash
-cd /sdcard/1tui/dsh-mobile   # 或开发目录 /sdcard/1tui/apk/dsh
+cd <仓库目录>   # 在仓库根目录运行即可
 bash build.sh
 # 产物: out/DSH-v<versionName>.apk
 ```
@@ -42,5 +42,5 @@ curl -X POST -H "Authorization: Bearer $TOKEN" \
 ## 同步流程（开发目录 ↔ 仓库）
 
 - 插件改动：`~/.dsh/profiles/node_modules/<name>/` → `plugins/<name>/`
-- 壳改动：`/sdcard/1tui/apk/dsh/app/src/main/` → `app/src/main/`（**manifest 版本号不同步**，仓库保持发布版）
-- 脚本：`/sdcard/1tui/scripts/` → `scripts/`
+- 壳改动：开发目录 `app/src/main/` → 仓库 `app/src/main/`（**manifest 版本号不同步**，仓库保持发布版）
+- 脚本：开发目录 `scripts/` → 仓库 `scripts/`
