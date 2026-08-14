@@ -28,6 +28,9 @@ function writeFlag(on) {
 
 function broadcast(payload) {
   const data = Buffer.from(JSON.stringify(payload)).toString('base64')
+  // 宽容性: 优先直接 am broadcast(普通 Termux shell 即可发, 无 root 可用), 失败再退回 su
+  const direct = spawnSync('am', ['broadcast', '-a', 'com.dsh.mobile.NOTIFY', '-n', 'com.dsh.mobile/.NotifyReceiver', '--es', 'payload', data], { timeout: 10000 })
+  if (direct.status === 0 && String(direct.stdout || '').includes('result=0')) return true
   const cmd = `am broadcast -a com.dsh.mobile.NOTIFY -n com.dsh.mobile/.NotifyReceiver --es payload '${data}'`
   const r = spawnSync('su', ['-c', cmd], { timeout: 10000 })
   return r.status === 0 && String(r.stdout || '').includes('result=0')
@@ -94,11 +97,20 @@ function apply(ctx) {
   // ── 1) notify 工具 ─────────────────────────────────────────
   ctx.tools.register(defineTool({
     name: 'notify',
-    description: 'Send an Android system notification through the DSH shell APK (com.dsh.mobile). Use it to alert the user when a long-running task finishes, a goal is reached, or attention is needed. The notification appears in the Android notification shade; tapping it opens the shell (optionally at a specific URL).',
+    description: [
+      '向 Android 手机发送系统通知（经 dsh-mobile 壳显示在通知栏，点按打开 dsh）。适合主动提醒用户的场景：',
+      '- 长任务/后台任务完成、到达关键节点、或中途需要用户注意时',
+      '- 达成目标、需要用户回来操作、或用户可能没在看屏幕时',
+      '调用要点：',
+      '- title：简短标题（尽量 ≤15 字，直接说明事件，如"备份完成-进行中"）',
+      '- body：正文第一行写最关键结论，再补充少量细节；不要贴大段代码或日志',
+      '- url：可选，点按通知跳转的地址；默认打开 dsh 主页',
+      '- 同一任务只在状态变化时发，不要频繁重复发送以免打扰',
+    ].join('\n'),
     parameters: {
-      title: { type: 'string', required: true, description: 'Notification title (short).' },
-      body: { type: 'string', required: true, description: 'Notification body text.' },
-      url: { type: 'string', description: 'Optional URL to open when the notification is tapped. Defaults to the dsh web home.' }
+      title: { type: 'string', required: true, description: '通知标题(简短, ≤15 字)。' },
+      body: { type: 'string', required: true, description: '通知正文(第一行写关键结论)。' },
+      url: { type: 'string', description: '可选: 点按通知跳转的 URL, 默认 dsh 主页。' }
     },
     output: {
       schema: {
