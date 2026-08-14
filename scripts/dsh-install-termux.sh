@@ -2,7 +2,7 @@
 # ============================================================
 # dsh (DeepSeek Harness) Termux 原生一键安装 — Android shell 直接运行
 # 适用: Android (Termux) 设备, 与 pi 同层权限 (可 bash 执行/读写文件)
-# 用法: bash dsh-install-termux.sh
+# 用法: bash install-dsh-native.sh
 # 注意: koffi 需 clang 现场编译, 全程约 10~30 分钟, 请勿中断
 # ============================================================
 
@@ -16,7 +16,9 @@ if [ -z "${PREFIX:-}" ] || [ ! -d "$PREFIX" ]; then
   exit 1
 fi
 
-echo "$P 0/9 安装工具链 (cmake/make/clang/curl)..."
+echo "$P 0/9 初始化 pkg (update/upgrade) + 安装工具链 (cmake/make/clang/curl)..."
+pkg update -y >/dev/null 2>&1 || pkg update -y
+pkg upgrade -y >/dev/null 2>&1 || pkg upgrade -y
 pkg install -y cmake make clang curl >/dev/null 2>&1 || pkg install -y cmake make clang curl
 
 # ---------- 1. 安装 dsh (跳过 install 脚本, 避免 node-pty gyp 崩溃) ----------

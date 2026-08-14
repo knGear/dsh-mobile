@@ -1,9 +1,9 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # ============================================================
-# dsh (DeepSeek Harness) 一键安装 — proot Debian 方案
+# dsh (DeepSeek Harness) 一键安装 — proot Ubuntu 方案
 # 适用: 另一台 Android 设备 (Termux 环境内运行)
-# 用法: bash dsh-install-linux.sh
-# 备注: 全程需要网络; 首次装 Debian + 编译工具链约需 10~20 分钟
+# 用法: bash install-dsh.sh
+# 备注: 全程需要网络; 首次装 Ubuntu + 编译工具链约需 10~20 分钟
 # ============================================================
 
 set -euo pipefail
@@ -19,17 +19,17 @@ fi
 echo "$P 1/7 安装 proot-distro / curl..."
 pkg install -y proot-distro curl >/dev/null 2>&1 || pkg install -y proot-distro curl
 
-# ---------- 2. 安装 Debian rootfs ----------
-if ! proot-distro list 2>/dev/null | grep -q '^debian'; then
-  echo "$P 2/7 安装 Debian proot (下载 rootfs, 请保持网络稳定)..."
-  proot-distro install debian
+# ---------- 2. 安装 Ubuntu rootfs ----------
+if ! proot-distro list 2>/dev/null | grep -q '^ubuntu'; then
+  echo "$P 2/7 安装 Ubuntu proot (下载 rootfs, 请保持网络稳定)..."
+  proot-distro install ubuntu
 else
-  echo "$P 2/7 Debian 已存在, 跳过"
+  echo "$P 2/7 Ubuntu 已存在, 跳过"
 fi
 
-# ---------- 3. Debian 内装 nodejs / npm / 编译工具链 ----------
-echo "$P 3/7 Debian 内安装 nodejs/npm/build-essential (体积较大, 耐心等待)..."
-proot-distro login debian -- bash -c '
+# ---------- 3. Ubuntu 内装 nodejs / npm / 编译工具链 ----------
+echo "$P 3/7 Ubuntu 内安装 nodejs/npm/build-essential (体积较大, 耐心等待)..."
+proot-distro login ubuntu -- bash -c '
   set -e
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -qq
@@ -39,11 +39,11 @@ proot-distro login debian -- bash -c '
 
 # ---------- 4. 安装 dsh ----------
 echo "$P 4/7 安装 @deepseek-ai/dsh (全局)..."
-proot-distro login debian -- npm i -g @deepseek-ai/dsh
+proot-distro login ubuntu -- npm i -g @deepseek-ai/dsh
 
 # ---------- 5. 校验/修补原生模块 ----------
 echo "$P 5/8 校验原生模块 (koffi / node-pty / sharp)..."
-proot-distro login debian -- bash -c '
+proot-distro login ubuntu -- bash -c '
   set -e
   D=/usr/local/lib/node_modules/@deepseek-ai/dsh/node_modules
   ok() { node -e "require(\"$1\")" >/dev/null 2>&1; }
@@ -99,19 +99,19 @@ fi
 
 # ---------- 7. 验证 + 启动器 ----------
 echo "$P 7/8 验证 dsh..."
-proot-distro login debian -- dsh --version
+proot-distro login ubuntu -- dsh --version
 
 # 启动器命令 (Termux 里直接输 dsh-web)
 cat > "$PREFIX/bin/dsh-web" <<'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
-proot-distro login debian -- dsh web
+proot-distro login ubuntu -- dsh web
 EOF
 chmod +x "$PREFIX/bin/dsh-web"
 echo "$P 已生成启动命令: dsh-web"
 
 # 试启动探测 (自动退出, 不影响结果)
 echo "$P 试启动 dsh web 探测端口 3080..."
-proot-distro login debian -- timeout 25 dsh web >/dev/null 2>&1 &
+proot-distro login ubuntu -- timeout 25 dsh web >/dev/null 2>&1 &
 sleep 20
 code=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3080/ 2>/dev/null || true)
 if [ "$code" = "200" ]; then
@@ -124,7 +124,7 @@ echo ""
 echo "================ 安装完成 ================"
 echo "启动:   dsh-web         (Termux 里直接执行)"
 echo "访问:   手机浏览器打开 http://127.0.0.1:3080  填 API key"
-echo "升级:   proot-distro login debian -- npm i -g @deepseek-ai/dsh@latest"
+echo "升级:   proot-distro login ubuntu -- npm i -g @deepseek-ai/dsh@latest"
 echo "插件:   已随本脚本装好 (mobile-ui / mobile-AndroidNotify), 重启 dsh 后生效"
 echo "==========================================="
 
