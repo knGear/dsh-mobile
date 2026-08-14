@@ -62,3 +62,34 @@ function myLayoutThing() {
 - [ ] host 改动：重启 dsh
 - [ ] 壳改动：`bash build.sh` + 安装
 - [ ] 文档同步（AGENT.md / docs / README）
+
+## 7. 主题/换肤（deepseek 娘美化等——本项目不做，留给社区）
+
+> 决策（2026-08）：保持内核简单易维护，主题包由有需求的人以插件形式做。以下是完整路线图。
+
+思路：**不 fork、不改壳、不加内核代码**——纯注入 CSS 覆盖 dsh 的 CSS 变量 + 素材直引用。
+
+### 素材放置（已实测）
+
+| 方案 | 做法 | 评价 |
+|---|---|---|
+| B. 工作区直放 | 文件放 dsh 启动目录，CSS `url('/bg.png')` | 零代码（实测 HTTP 200 ✓），但路径跟启动目录走 |
+| C. host 路由（推荐给主题作者） | 插件注册 prefix 路由 `/api/dsh-theme/`，从 `~/.dsh/theme/` 读文件 | 路径固定，素材随便丢 |
+| base64 内嵌 | 小图标可；壁纸级不现实 | 膨胀 |
+
+> 不要用 `file:///` 引用——http 页面跨 scheme 会被 WebView 拦截。
+
+### 换肤核心：覆盖 CSS 变量（dsh 全量变量化）
+
+- 背景/底色：`--dsw-alias-bg-*`、`--dsw-specific-sidebar-fill`、`--dsw-alias-fill-*`
+- 边框/圆角/阴影：`--dsw-alias-border-*`、`--dsw-shadow-*`
+- 字体：`--dsw-font-family`（@font-face 或系统字体）
+- 参考：社区 `dsh-web-ui` 项目已有皮肤中心（8 款皮肤 + skin-developer 技能）——换肤是成熟玩法
+
+### 主题插件骨架（给未来作者）
+
+1. 新建插件（照 `plugins/mobile-ui` 结构）或内嵌 mobile-ui
+2. client.js 注入 `<style>` 覆盖变量（幂等，挂 applyLayout 或一次性注入）
+3. 设置面板加"主题"开关（四件套模板：state.json + 路由 + UI + 消费）
+4. 素材走方案 B 或 C
+5. 发布：`examples/` 挂完整 diff
