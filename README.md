@@ -33,25 +33,25 @@ dsh（DeepSeek Harness）是 DeepSeek 官方的 AI 编码/任务框架。本项�
 pkg update && pkg upgrade -y
 ```
 
-### 2. 后端：在 Termux 里安装 dsh 原版
+### 2. 后端：在 Termux 里安装 dsh 原版（二选一）
 
-**方式 A：官方 npm 包（标准安装）**
+**方式一：Termux 内的 Linux 直接安装**（proot Debian 等标准 Linux 环境，npm 原样安装，无需任何修补）
 
 ```bash
-pkg install -y nodejs npm cmake make clang curl
-npm install -g @deepseek-ai/dsh
-dsh web        # 启动 web 界面, 默认 http://127.0.0.1:3080
+# 前置: 装一个 Linux 发行版(Termux 内)
+pkg install proot-distro
+proot-distro install debian
+proot-distro login debian
+# 以下在 Linux 内执行
+apt update && apt install -y nodejs npm
+npm i -g @deepseek-ai/dsh
+dsh web        # 启动, 终端会弹出网址信息(默认 http://127.0.0.1:3080)
 ```
 
-> ⚠ **Termux 原生环境的依赖修补**：dsh 的原生依赖（node-pty/koffi/sharp）在 Android 上没有现成二进制——
-> npm 安装需加 `--ignore-scripts` 跳过原生编译，再手动编译 node-pty/koffi（bionic 缺 `spawn.h` 需先补）、
-> 把 sharp 换成 wasm 版。**完整可执行步骤见仓库自带 `app/src/main/res/raw/install_backend.sh`**（一键执行全部步骤）。
+**方式二：一键脚本（Termux 原生环境）**
 
-**方式 B：一键脚本（推荐）**
-
-安装 APK 后打开 App → 离线页点「复制安装脚本」→ 粘贴到 Termux 执行，自动完成上述全部步骤并启动 dsh web。
-
-> 提示：在 proot Debian 等标准 Linux 环境（proot-distro）里 npm 可原样安装，无需修补，同样能跑。
+安装 APK 后打开 App → 离线页点「复制安装脚本」→ 粘贴到 Termux 执行，自动完成 Termux 原生的依赖修补
+（node-pty/koffi 编译、sharp wasm 版等，完整步骤见 `app/src/main/res/raw/install_backend.sh`）并启动 dsh web。
 
 ### 3. 前端：安装 APK
 
