@@ -35,6 +35,8 @@ pkg update && pkg upgrade -y
 
 ### 2. 后端：在 Termux 里安装 dsh 原版（二选一）
 
+**快速上手（推荐完整流程）**：安装 Termux → 运行方式二脚本（自动装好 dsh + 两个移动端插件）→ 安装 APK → 首次打开自动申请通知授权 → 完成。
+
 **方式一：Termux 内的 Linux 直接安装**（proot Debian 等标准 Linux 环境，npm 原样安装，无需任何修补）
 
 ```bash
@@ -59,12 +61,12 @@ bash install-dsh.sh
 
 脚本自动完成：装 proot-distro + Debian → 装 nodejs/npm → `npm i -g @deepseek-ai/dsh` → 校验原生模块
 （koffi/node-pty/sharp）→ SELinux hardlink 检测（有 root 自动修复，无 root 给出指引与规避方案）→
-生成 `dsh-web` 启动命令并探测验证。首次约 10~20 分钟。
+生成 `dsh-web` 启动命令并探测验证 → **自动安装两个移动端插件并挂载**。首次约 10~20 分钟。
 
 ### 3. 前端：安装 APK
 
 GitHub [Releases](https://github.com/knGear/dsh-mobile/releases) 下载 `DSH-v0.01.apk`（Android 8.0+，允许未知来源）。
-打开即连本机 `127.0.0.1:3080`；局域网其他设备可在离线页输入 `IP:端口` 远程连接。
+打开即连本机 `127.0.0.1:3080`；首次启动会自动申请通知授权（Android 13+，会话状态/完成提醒需要）；局域网其他设备可在离线页输入 `IP:端口` 远程连接。
 
 ### 4. 插件（可选但推荐）
 
