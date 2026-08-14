@@ -39,13 +39,14 @@ pkg update && pkg upgrade -y
 
 ```bash
 pkg install -y curl
-curl -L -o install-dsh.sh https://raw.githubusercontent.com/knGear/dsh-mobile/main/scripts/install-dsh.sh
-bash install-dsh.sh
+curl -L -o dsh-install-termux.sh https://raw.githubusercontent.com/knGear/dsh-mobile/main/scripts/dsh-install-termux.sh
+bash dsh-install-termux.sh
 ```
 
-脚本自动完成：装 proot-distro + Debian → 装 nodejs/npm → `npm i -g @deepseek-ai/dsh` → 校验原生模块
-（koffi/node-pty/sharp）→ SELinux hardlink 检测（有 root 自动修复，无 root 给出指引与规避方案）→
-生成 `dsh-web` 启动命令并探测验证 → **自动安装两个移动端插件并挂载**。首次约 10~20 分钟。
+脚本自动完成：装工具链 → `npm i -g @deepseek-ai/dsh`（--ignore-scripts）→ 手动编译 node-pty/koffi
+（Termux 无 NDK，node-gyp 必崩，用 clang++ 现场编译）→ 补 bionic 缺失的 spawn.h → sharp 换 wasm 版 →
+SELinux hardlink 检测（有 root 自动修复）→ 生成 `dsh-web` 启动命令并验证 → **自动安装两个移动端插件并挂载**。
+全程约 10~30 分钟（koffi 编译最耗时），请勿中断。
 
 **方式二：Termux 内的 Linux（官方 npm 安装，与普通 Linux 完全一样）**
 
@@ -60,14 +61,15 @@ dsh web        # 启动, 终端会弹出网址信息(默认 http://127.0.0.1:308
 ```
 
 > PC / 服务器等普通 Linux 环境同样适用（跳过 proot 步骤，直接 npm 安装）。
+> 想一键自动完成（含插件）：`curl -L -o dsh-install-linux.sh https://raw.githubusercontent.com/knGear/dsh-mobile/main/scripts/dsh-install-linux.sh && bash dsh-install-linux.sh`。
 
 **方式三：已有 dsh → 追加两个移动端插件包**
 
 PC / 服务器 / Termux / proot 等任意已装好 dsh 的环境，只需补装移动端插件：
 
 ```bash
-curl -L -o install-plugins.sh https://raw.githubusercontent.com/knGear/dsh-mobile/main/scripts/install-plugins.sh
-bash install-plugins.sh    # 重复运行 = 更新到最新版
+curl -L -o dsh-addone-mobile.sh https://raw.githubusercontent.com/knGear/dsh-mobile/main/scripts/dsh-addone-mobile.sh
+bash dsh-addone-mobile.sh    # 重复运行 = 更新到最新版
 ```
 
 ### 3. 前端：APK 连接以上三种情况的本地/远程 dsh

@@ -3,7 +3,7 @@
 # dsh-mobile 移动端插件独立安装 (mobile-ui / mobile-AndroidNotify)
 # 适用: 已用任意方式装好 dsh 的环境 (PC / 服务器 / Termux / proot),
 #       补装两个移动端插件, 再用 dsh-mobile APK 获得增强体验。
-# 用法: bash install-plugins.sh      (重复运行 = 更新到最新版)
+# 用法: bash dsh-addone-mobile.sh      (重复运行 = 更新到最新版)
 # ============================================================
 set -euo pipefail
 
