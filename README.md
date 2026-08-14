@@ -63,20 +63,21 @@ bash install-dsh.sh
 （koffi/node-pty/sharp）→ SELinux hardlink 检测（有 root 自动修复，无 root 给出指引与规避方案）→
 生成 `dsh-web` 启动命令并探测验证 → **自动安装两个移动端插件并挂载**。首次约 10~20 分钟。
 
+**方式三：独立插件安装（dsh 已用别的方式装好时）**
+
+PC / 服务器 / Termux 等任意已装好 dsh 的环境，只需补装两个移动端插件：
+
+```bash
+curl -L -o install-plugins.sh https://raw.githubusercontent.com/knGear/dsh-mobile/main/scripts/install-plugins.sh
+bash install-plugins.sh    # 重复运行 = 更新到最新版
+```
+
+然后安装 APK，连接本机或远程（离线页输入 `IP:端口`）即可获得增强体验。
+
 ### 3. 前端：安装 APK
 
 GitHub [Releases](https://github.com/knGear/dsh-mobile/releases) 下载 `DSH-v0.01.apk`（Android 8.0+，允许未知来源）。
 打开即连本机 `127.0.0.1:3080`；首次启动会自动申请通知授权（Android 13+，会话状态/完成提醒需要）；局域网其他设备可在离线页输入 `IP:端口` 远程连接。
-
-### 4. 插件（可选但推荐）
-
-```bash
-git clone git@github.com:knGear/dsh-mobile.git
-mkdir -p ~/.dsh/profiles/node_modules
-cp -r dsh-mobile/plugins/mobile-ui dsh-mobile/plugins/mobile-AndroidNotify ~/.dsh/profiles/node_modules/
-# 把 plugins/cordis.patch.yml 的内容插入 ~/.dsh/profiles/web/cordis.patch.yml(见下节)
-dsh web        # 重启后生效
-```
 
 ## 从源码构建
 
