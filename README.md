@@ -23,6 +23,12 @@ dsh（DeepSeek Harness）是 DeepSeek 官方的 AI 编码/任务框架。本项�
 - 移动端设置选项卡：连接地址 / 通知强化 / 全面屏优化（开关+偏移）/ 重启 dsh / 安全模式
 - 纯净模式：一键禁用全部移动端改动，回到原版 UI
 
+## 界面预览
+
+| 对话 | 移动设置 | 排版优化 |
+| --- | --- | --- |
+| ![自我介绍](docs/screenshots/自我介绍.png) | ![移动设置](docs/screenshots/移动设置.png) | ![排版优化](docs/screenshots/排版优化.png) |
+
 ## 安装
 
 ### ① termux 直装（推荐）
