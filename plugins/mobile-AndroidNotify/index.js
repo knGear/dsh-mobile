@@ -36,12 +36,18 @@ function broadcast(payload) {
     p.channel = soundEnabled ? 'dsh_notify_v2' : 'dsh_notify_silent'
   }
   const data = Buffer.from(JSON.stringify(p)).toString('base64')
-  // 宽容性: 优先直接 am broadcast(普通 Termux shell 即可发, 无 root 可用), 失败再退回 su
-  const direct = spawnSync('am', ['broadcast', '-a', 'com.dsh.mobile.NOTIFY', '-n', 'com.dsh.mobile/.NotifyReceiver', '--es', 'payload', data], { timeout: 10000 })
-  if (direct.status === 0 && String(direct.stdout || '').includes('result=0')) return true
-  const cmd = `am broadcast -a com.dsh.mobile.NOTIFY -n com.dsh.mobile/.NotifyReceiver --es payload '${data}'`
+  // Android 14+ 的 am broadcast 不再等待结果(帮助文档明示 exit code 恒为 0),
+  // stdout 永远没有 "result=0", 无法从输出判断成败。因此:
+  // ① 先确认壳应用已安装(pm path 校验真实存在, 这是最主要的失败场景);
+  // ② 加 --include-stopped-packages, 应用处于 stopped 态(强停/重启未打开)也能收到;
+  // ③ 发送进程退出码 0 视为成功(解析/权限错误会以非 0 退出)。
+  const pkg = spawnSync('pm', ['path', 'com.dsh.mobile'], { timeout: 10000 })
+  if (pkg.status !== 0 || !String(pkg.stdout || '').includes('base.apk')) return false
+  const direct = spawnSync('am', ['broadcast', '--include-stopped-packages', '-a', 'com.dsh.mobile.NOTIFY', '-n', 'com.dsh.mobile/.NotifyReceiver', '--es', 'payload', data], { timeout: 10000 })
+  if (direct.status === 0) return true
+  const cmd = `am broadcast --include-stopped-packages -a com.dsh.mobile.NOTIFY -n com.dsh.mobile/.NotifyReceiver --es payload '${data}'`
   const r = spawnSync('su', ['-c', cmd], { timeout: 10000 })
-  return r.status === 0 && String(r.stdout || '').includes('result=0')
+  return r.status === 0
 }
 
 function ongoingId(sessionId) {
@@ -114,8 +120,9 @@ function apply(ctx) {
 
   // 结果横幅统一出口: 系统通知(broadcast) + 页面内浮窗事件(click 跳会话)
   // kind: complete/question/truncated/error/tool
+  // 注意: 必须 return broadcast 的结果 — notify 工具靠它判断发送成败(ok 字段)
   function banner(payload) {
-    broadcast(payload)
+    const ok = broadcast(payload)
     try {
       ctx.emit('dsh-notify/banner', {
         sessionId: payload.sessionId,
@@ -125,6 +132,7 @@ function apply(ctx) {
         url: payload.url
       })
     } catch (e) { /* 忽略 */ }
+    return ok
   }
   soundEnabled = readState().sound !== false // 通知声音/震动(默认开)
 
