@@ -111,6 +111,21 @@ function apply(ctx) {
   const agentDefaultModel = ctx.get('agentDefaultModel')
   const timer = ctx.get('timer')
   let progressOn = readState().progressSummary === true // 通知内容强化(默认关)
+
+  // 结果横幅统一出口: 系统通知(broadcast) + 页面内浮窗事件(click 跳会话)
+  // kind: complete/question/truncated/error/tool
+  function banner(payload) {
+    broadcast(payload)
+    try {
+      ctx.emit('dsh-notify/banner', {
+        sessionId: payload.sessionId,
+        kind: payload.kind,
+        title: payload.title,
+        body: payload.body,
+        url: payload.url
+      })
+    } catch (e) { /* 忽略 */ }
+  }
   soundEnabled = readState().sound !== false // 通知声音/震动(默认开)
 
   // ── 1) notify 工具 ─────────────────────────────────────────
@@ -146,9 +161,9 @@ function apply(ctx) {
       }]
     },
     execute(args) {
-      const data = { title: args.title, body: args.body }
+      const data = { title: args.title, body: args.body, kind: 'tool' }
       if (args.url) data.url = args.url
-      const ok = broadcast(data)
+      const ok = banner(data)
       return { ok, message: ok ? args.title : 'broadcast 失败' }
     }
   }))
@@ -196,6 +211,52 @@ function apply(ctx) {
   const state = new Map()
   const notified = new Set()
   const lastUser = new Map()
+
+  // 会话状态面板数据: 运行中集合(置顶) + 最近完成队列(上限 5, 点击即移除)
+  const runningSessions = new Map() // sid → title
+  const doneSessions = [] // [{sid, title}]
+
+  function sessionsSnapshot() {
+    return {
+      running: [...runningSessions.entries()].map(([sid, title]) => ({ sessionId: sid, title })),
+      done: doneSessions.map((d) => ({ sessionId: d.sid, title: d.title }))
+    }
+  }
+  function emitSessions() {
+    try { ctx.emit('dsh-notify/sessions', sessionsSnapshot()) } catch (e) { /* 忽略 */ }
+  }
+  function markDone(sid, agent) {
+    if (!runningSessions.has(sid)) return
+    runningSessions.delete(sid)
+    try {
+      doneSessions.unshift({ sid, title: titleOf(agent) })
+      if (doneSessions.length > 5) doneSessions.length = 5
+    } catch (e) { /* 忽略 */ }
+    emitSessions()
+  }
+
+  // 状态快照路由: GET 拉取 / POST ?removeDone=<sid> 移除完成项(点击即消失)
+  ctx.webServer.register({
+    kind: 'exact',
+    path: '/api/dsh-session-status',
+    handler: (req, res) => {
+      try {
+        const u = new URL(req.url, 'http://127.0.0.1')
+        if (req.method === 'POST') {
+          const sid = u.searchParams.get('removeDone')
+          if (sid) {
+            const i = doneSessions.findIndex((d) => d.sid === sid)
+            if (i >= 0) doneSessions.splice(i, 1)
+          }
+        }
+        res.writeHead(200, { 'content-type': 'application/json' })
+        res.end(JSON.stringify(sessionsSnapshot()))
+      } catch (e) {
+        res.writeHead(500, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ ok: false }))
+      }
+    },
+  })
   const lastAssistant = new Map()
   const epoch = new Map()
   const agents = ctx.get('agents')
@@ -395,20 +456,25 @@ function apply(ctx) {
         epoch.set(sid, (epoch.get(sid) || 0) + 1)
         notified.delete(sid)
         postOngoing(sid)
+        runningSessions.set(sid, titleOf(agent))
+        emitSessions()
         return
       }
       if (status === 'idle') {
         const st = state.get(sid)
         if (st) st.running = false
         broadcast({ id: ongoingId(sid), cancel: true })
+        markDone(sid, agent)
         // 手动暂停(aborted): 注销常驻, 什么都不发
         if (paused.has(sid)) { paused.delete(sid); return }
         // 截断(max-tokens): 注销常驻 + 截断横幅
         if (truncated.has(sid)) {
           truncated.delete(sid)
           if (notified.has(sid)) { notified.delete(sid); return }
-          broadcast({
+          banner({
             id: notifyId(sid),
+            sessionId: sid,
+            kind: 'truncated',
             title: `${titleOf(agent)}-截断`,
             body: '达到输出上限已截断，发送"继续"可接着输出',
             url: sessionUrl(sid)
@@ -420,7 +486,7 @@ function apply(ctx) {
         if (tool === 'ask_user_question') {
           const q = st.lastArgs && st.lastArgs.questions && st.lastArgs.questions[0]
           const text = (q && (q.question || q.header)) || ''
-          broadcast({ id: notifyId(sid), title: `${titleOf(agent)}-提问`, body: clamp(text, 100) || '等你回复', url: sessionUrl(sid) })
+          banner({ id: notifyId(sid), sessionId: sid, kind: 'question', title: `${titleOf(agent)}-提问`, body: clamp(text, 100) || '等你回复', url: sessionUrl(sid) })
         } else {
           const gen = epoch.get(sid) || 0
           void (async () => {
@@ -428,7 +494,7 @@ function apply(ctx) {
             const summary = progressOn ? await generateSummary(sid, agent) : ''
             if ((epoch.get(sid) || 0) !== gen) return
             const body = summarize(summary) || todoText(st) || '已完成'
-            broadcast({ id: notifyId(sid), title: `${titleOf(agent)}-完成`, body, url: sessionUrl(sid) })
+            banner({ id: notifyId(sid), sessionId: sid, kind: 'complete', title: `${titleOf(agent)}-完成`, body, url: sessionUrl(sid) })
           })()
         }
       }
@@ -445,7 +511,8 @@ function apply(ctx) {
       truncated.delete(sid)
       notified.add(sid)
       broadcast({ id: ongoingId(sid), cancel: true })
-      broadcast({ id: notifyId(sid), title: `${titleOf(agent)}-故障`, body: errorCode(error), url: sessionUrl(sid) })
+      markDone(sid, agent)
+      banner({ id: notifyId(sid), sessionId: sid, kind: 'error', title: `${titleOf(agent)}-故障`, body: errorCode(error), url: sessionUrl(sid) })
     } catch (e) { /* 忽略 */ }
   })
 
@@ -458,6 +525,7 @@ function apply(ctx) {
       paused.delete(sid)
       truncated.delete(sid)
       broadcast({ id: ongoingId(sid), cancel: true })
+      markDone(sid, agent)
     } catch (e) { /* 忽略 */ }
   })
 
