@@ -21,6 +21,21 @@ pkg update -y >/dev/null 2>&1 || pkg update -y
 pkg upgrade -y >/dev/null 2>&1 || pkg upgrade -y
 pkg install -y cmake make clang curl >/dev/null 2>&1 || pkg install -y cmake make clang curl
 
+# 允许外部应用执行命令(RUN_COMMAND 拉起需要; termux.properties 用户可写, 无需 root)
+mkdir -p "$HOME/.termux"
+PROP="$HOME/.termux/termux.properties"
+if [ -f "$PROP" ] && grep -q '^allow-external-apps' "$PROP"; then
+  sed -i 's/^allow-external-apps=.*/allow-external-apps=true/' "$PROP"
+else
+  echo 'allow-external-apps=true' >> "$PROP"
+fi
+if command -v termux-reload-settings >/dev/null 2>&1; then
+  termux-reload-settings 2>/dev/null || true
+  echo "$P   已开启 allow-external-apps (立即生效)"
+else
+  echo "$P   已开启 allow-external-apps (重启 Termux 后生效)"
+fi
+
 # ---------- 1. 安装 dsh (跳过 install 脚本, 避免 node-pty gyp 崩溃) ----------
 echo "$P 1/9 安装 @deepseek-ai/dsh (--ignore-scripts)..."
 npm i -g @deepseek-ai/dsh --ignore-scripts

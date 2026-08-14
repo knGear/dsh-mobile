@@ -26,6 +26,7 @@ import org.json.JSONObject;
  */
 public class NotifyReceiver extends BroadcastReceiver {
     private static final String CHANNEL_ID = "dsh_notify_v2";
+    private static final String CHANNEL_SILENT_ID = "dsh_notify_silent";
     private static final String CHANNEL_STATUS_ID = "dsh_status";
     private static final int DEFAULT_ONGOING_ID = 1000;
 
@@ -37,6 +38,7 @@ public class NotifyReceiver extends BroadcastReceiver {
         boolean ongoing = false;
         boolean cancel = false;
         int id = -1;
+        String channel = null;
 
         try {
             String payload = intent.getStringExtra("payload");
@@ -48,6 +50,7 @@ public class NotifyReceiver extends BroadcastReceiver {
                 ongoing = o.optBoolean("ongoing", false);
                 cancel = o.optBoolean("cancel", false);
                 if (o.has("id")) id = o.optInt("id", -1);
+                if (o.has("channel")) channel = o.optString("channel");
             } else {
                 String t = intent.getStringExtra("title");
                 String b = intent.getStringExtra("body");
@@ -55,12 +58,14 @@ public class NotifyReceiver extends BroadcastReceiver {
                 if (t != null && t.length() > 0) title = t;
                 if (b != null) body = b;
                 url = u;
+                channel = intent.getStringExtra("channel");
             }
         } catch (Exception ignored) {
         }
 
         NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
         ensureChannel(nm, CHANNEL_ID, "DSH 通知", NotificationManager.IMPORTANCE_HIGH, true);
+        ensureChannel(nm, CHANNEL_SILENT_ID, "DSH 通知(静音)", NotificationManager.IMPORTANCE_HIGH, false);
         ensureChannel(nm, CHANNEL_STATUS_ID, "DSH 运行状态", NotificationManager.IMPORTANCE_LOW, false);
         // 清理孤儿渠道(v0.3 遗留的 dsh_notify, importance 已锁定无法复用)
         nm.deleteNotificationChannel("dsh_notify");
@@ -72,7 +77,9 @@ public class NotifyReceiver extends BroadcastReceiver {
         }
 
         int notifyId = id >= 0 ? id : (int) (System.currentTimeMillis() & 0x7fffffff);
-        String channelId = ongoing ? CHANNEL_STATUS_ID : CHANNEL_ID;
+        // 渠道选择: 插件显式 channel 优先(声音开关), 常驻走 status, 否则默认有声渠道
+        String channelId = channel != null ? channel
+            : (ongoing ? CHANNEL_STATUS_ID : CHANNEL_ID);
 
         Intent open = new Intent(context, MainActivity.class);
         open.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);

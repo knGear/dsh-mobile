@@ -13,21 +13,29 @@ const ONGOING_BASE = 1000
 // 通知内容强化开关状态文件(本插件目录, 跨重启持久)
 const STATE_FILE = join(dirname(fileURLToPath(import.meta.url)), 'state.json')
 
-function readFlag() {
+function readState() {
   try {
     if (existsSync(STATE_FILE)) {
       const data = JSON.parse(readFileSync(STATE_FILE, 'utf8'))
-      return data.progressSummary === true
+      if (data && typeof data === 'object') return data
     }
   } catch (e) { /* 忽略 */ }
-  return false
+  return {}
 }
-function writeFlag(on) {
-  try { writeFileSync(STATE_FILE, JSON.stringify({ progressSummary: on === true })) } catch (e) { /* 忽略 */ }
+function writeState(s) {
+  try { writeFileSync(STATE_FILE, JSON.stringify(s)) } catch (e) { /* 忽略 */ }
 }
 
+// 通知声音开关(模块级, 广播时注入渠道; 默认开)
+let soundEnabled = true
+
 function broadcast(payload) {
-  const data = Buffer.from(JSON.stringify(payload)).toString('base64')
+  const p = { ...payload }
+  // 结果横幅(非 ongoing/cancel)按声音开关选渠道: 有声 dsh_notify_v2 / 静音 dsh_notify_silent
+  if (!p.ongoing && !p.cancel) {
+    p.channel = soundEnabled ? 'dsh_notify_v2' : 'dsh_notify_silent'
+  }
+  const data = Buffer.from(JSON.stringify(p)).toString('base64')
   // 宽容性: 优先直接 am broadcast(普通 Termux shell 即可发, 无 root 可用), 失败再退回 su
   const direct = spawnSync('am', ['broadcast', '-a', 'com.dsh.mobile.NOTIFY', '-n', 'com.dsh.mobile/.NotifyReceiver', '--es', 'payload', data], { timeout: 10000 })
   if (direct.status === 0 && String(direct.stdout || '').includes('result=0')) return true
@@ -41,6 +49,16 @@ function ongoingId(sessionId) {
   const s = String(sessionId || '')
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
   return ONGOING_BASE + (h % 900000)
+}
+
+// 结果横幅通知 id(与常驻不同号段, 互不覆盖): 同一会话的新横幅覆盖旧横幅,
+// 保证"每个对话最多一个通知"(三轮问答 = 三条横幅堆叠 → 旧销新替)
+const NOTIFY_BASE = 2000000
+function notifyId(sessionId) {
+  let h = 0
+  const s = String(sessionId || '')
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
+  return NOTIFY_BASE + (h % 900000)
 }
 
 function sessionUrl(sessionId) {
@@ -92,7 +110,8 @@ function apply(ctx) {
   const llm = ctx.get('llm')
   const agentDefaultModel = ctx.get('agentDefaultModel')
   const timer = ctx.get('timer')
-  let progressOn = readFlag() // 通知内容强化开关(默认关)
+  let progressOn = readState().progressSummary === true // 通知内容强化(默认关)
+  soundEnabled = readState().sound !== false // 通知声音/震动(默认开)
 
   // ── 1) notify 工具 ─────────────────────────────────────────
   ctx.tools.register(defineTool({
@@ -134,7 +153,7 @@ function apply(ctx) {
     }
   }))
 
-  // ── 2) 内容强化开关路由 ────────────────────────────────────
+  // ── 2) 内容强化 + 声音开关路由 ─────────────────────────────
   ctx.webServer.register({
     kind: 'exact',
     path: '/api/dsh-progress-summary',
@@ -143,10 +162,29 @@ function apply(ctx) {
         const u = new URL(req.url, 'http://127.0.0.1')
         if (req.method === 'POST') {
           progressOn = u.searchParams.get('on') === '1'
-          writeFlag(progressOn)
+          writeState({ progressSummary: progressOn, sound: soundEnabled })
         }
         res.writeHead(200, { 'content-type': 'application/json' })
         res.end(JSON.stringify({ ok: true, on: progressOn }))
+      } catch (e) {
+        res.writeHead(500, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ ok: false }))
+      }
+    },
+  })
+
+  ctx.webServer.register({
+    kind: 'exact',
+    path: '/api/dsh-notify-settings',
+    handler: (req, res) => {
+      try {
+        const u = new URL(req.url, 'http://127.0.0.1')
+        if (req.method === 'POST') {
+          soundEnabled = u.searchParams.get('sound') === '1'
+          writeState({ progressSummary: progressOn, sound: soundEnabled })
+        }
+        res.writeHead(200, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ ok: true, sound: soundEnabled }))
       } catch (e) {
         res.writeHead(500, { 'content-type': 'application/json' })
         res.end(JSON.stringify({ ok: false }))
@@ -298,7 +336,9 @@ function apply(ctx) {
     })()
   }
 
-  // 捕获用户/助手消息文本
+  // 捕获用户/助手消息文本 + finish 原因(区分 手动暂停/截断/正常完成)
+  const paused = new Map()    // sid → true: 用户手动暂停(aborted)
+  const truncated = new Map() // sid → true: 输出截断(max-tokens)
   ctx.on('session/event', (session, event) => {
     try {
       const sid = session && session.id
@@ -312,6 +352,10 @@ function apply(ctx) {
           const text = textOf(event)
           if (text) lastUser.set(sid, text)
         }
+      } else if (event.type === 'finish') {
+        const kind = event.data && event.data.reason && event.data.reason.kind
+        if (kind === 'aborted') paused.set(sid, true)
+        else if (kind === 'max-tokens') truncated.set(sid, true)
       }
     } catch (e) { /* 忽略 */ }
   })
@@ -357,12 +401,26 @@ function apply(ctx) {
         const st = state.get(sid)
         if (st) st.running = false
         broadcast({ id: ongoingId(sid), cancel: true })
+        // 手动暂停(aborted): 注销常驻, 什么都不发
+        if (paused.has(sid)) { paused.delete(sid); return }
+        // 截断(max-tokens): 注销常驻 + 截断横幅
+        if (truncated.has(sid)) {
+          truncated.delete(sid)
+          if (notified.has(sid)) { notified.delete(sid); return }
+          broadcast({
+            id: notifyId(sid),
+            title: `${titleOf(agent)}-截断`,
+            body: '达到输出上限已截断，发送"继续"可接着输出',
+            url: sessionUrl(sid)
+          })
+          return
+        }
         if (notified.has(sid)) { notified.delete(sid); return }
         const tool = st && st.lastTool
         if (tool === 'ask_user_question') {
           const q = st.lastArgs && st.lastArgs.questions && st.lastArgs.questions[0]
           const text = (q && (q.question || q.header)) || ''
-          broadcast({ title: `${titleOf(agent)}-提问`, body: clamp(text, 100) || '等你回复', url: sessionUrl(sid) })
+          broadcast({ id: notifyId(sid), title: `${titleOf(agent)}-提问`, body: clamp(text, 100) || '等你回复', url: sessionUrl(sid) })
         } else {
           const gen = epoch.get(sid) || 0
           void (async () => {
@@ -370,7 +428,7 @@ function apply(ctx) {
             const summary = progressOn ? await generateSummary(sid, agent) : ''
             if ((epoch.get(sid) || 0) !== gen) return
             const body = summarize(summary) || todoText(st) || '已完成'
-            broadcast({ title: `${titleOf(agent)}-完成`, body, url: sessionUrl(sid) })
+            broadcast({ id: notifyId(sid), title: `${titleOf(agent)}-完成`, body, url: sessionUrl(sid) })
           })()
         }
       }
@@ -383,9 +441,11 @@ function apply(ctx) {
       if (!sid) return
       const st = state.get(sid)
       if (st) st.running = false
+      paused.delete(sid)
+      truncated.delete(sid)
       notified.add(sid)
       broadcast({ id: ongoingId(sid), cancel: true })
-      broadcast({ title: `${titleOf(agent)}-故障`, body: errorCode(error), url: sessionUrl(sid) })
+      broadcast({ id: notifyId(sid), title: `${titleOf(agent)}-故障`, body: errorCode(error), url: sessionUrl(sid) })
     } catch (e) { /* 忽略 */ }
   })
 
@@ -395,6 +455,8 @@ function apply(ctx) {
       if (!sid) return
       const st = state.get(sid)
       if (st) st.running = false
+      paused.delete(sid)
+      truncated.delete(sid)
       broadcast({ id: ongoingId(sid), cancel: true })
     } catch (e) { /* 忽略 */ }
   })
@@ -409,6 +471,15 @@ function apply(ctx) {
       } catch (e) { /* 忽略 */ }
     }, 60000))
   }
+
+  // 插件卸载/dsh 重启兜底: 取消所有运行中的常驻通知, 防止通知栏残留
+  ctx.effect(() => () => {
+    try {
+      for (const [sid, st] of state) {
+        if (st && st.running) broadcast({ id: ongoingId(sid), cancel: true })
+      }
+    } catch (e) { /* 忽略 */ }
+  })
 }
 
 export { name, inject, apply }

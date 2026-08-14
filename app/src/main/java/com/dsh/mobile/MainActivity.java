@@ -25,6 +25,7 @@ import android.webkit.WebViewClient;
 import android.widget.Toast;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
+import android.net.Uri;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
@@ -42,26 +43,64 @@ public class MainActivity extends Activity {
         "<meta name='viewport' content='width=device-width,initial-scale=1'>" +
         "</head>" +
         "<body style='margin:0;background:#151517;color:#e6e6ef;font-family:sans-serif;" +
-        "display:flex;align-items:center;justify-content:center;height:100vh;text-align:center'>" +
+        "display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center'>" +
         "<div style='max-width:420px;width:calc(100vw - 48px)'>" +
         "<div style='font-size:64px'>&#128011;</div>" +
         "<h2 style='margin:16px 0 8px;font-weight:600'>DSH 未启动</h2>" +
         "<p style='margin:0 0 18px;color:#8a8a99;line-height:1.7'>dsh web 未运行<br>" +
         "在 Termux 执行 <b style='color:#c8c8d8'>dsh-web</b> 启动后自动进入</p>" +
+        // 输入框: 空=本地默认 127.0.0.1:3080, 纯 IP 自动补 :3080(doConnect 处理)
         "<div style='display:flex;gap:8px;margin-bottom:10px'>" +
-        "<input id='host' placeholder='IP:端口（空=127.0.0.1:3080）' " +
+        "<input id='host' placeholder='IP:端口' " +
         "style='flex:1;min-width:0;padding:10px 12px;border-radius:8px;border:1px solid #3a3a4a;" +
         "background:#16161f;color:#e6e6ef;font-size:14px;outline:none'>" +
-        "<button onclick=\"AndroidShell.connect(document.getElementById('host').value)\" " +
+        "<button onclick=\"doConnect()\" " +
         "style='padding:10px 18px;border-radius:8px;border:none;background:#4f7cff;color:#fff;font-size:14px'>连接</button>" +
         "</div>" +
-        "<div style='display:flex;gap:8px;justify-content:center'>" +
-        "<a href='http://127.0.0.1:3080/' style='display:inline-block;padding:10px 24px;" +
-        "border:1px solid #3a3a4a;border-radius:999px;color:#e6e6ef;text-decoration:none'>本机重试</a>" +
-        "<button onclick=\"AndroidShell.copyInstallScript()\" " +
-        "style='padding:10px 24px;border-radius:999px;border:1px solid #3a3a4a;background:transparent;color:#e6e6ef;font-size:14px'>复制安装脚本</button>" +
+        // 远程连接记录(上限 5, 与输入框同宽)
+        "<div id='hist' style='display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px;width:100%;box-sizing:border-box'></div>" +
+        // GitHub 仓库 / 最新 Termux 下载 / 一键启动(精简入口)
+        "<div style='display:flex;gap:8px;margin:0 0 18px;justify-content:center;flex-wrap:wrap'>" +
+        "<button onclick=\"AndroidShell.openUrl('https://github.com/knGear/dsh-mobile')\" " +
+        "style='padding:8px 16px;border-radius:999px;border:1px solid #3a3a4a;background:transparent;color:#e6e6ef;font-size:13px'>GitHub 仓库</button>" +
+        "<button onclick=\"AndroidShell.openTermuxDownload()\" " +
+        "style='padding:8px 16px;border-radius:999px;border:1px solid #3a3a4a;background:transparent;color:#e6e6ef;font-size:13px'>下载 Termux（F-Droid）</button>" +
+        "<button onclick=\"AndroidShell.launchTermuxStart()\" " +
+        "style='padding:8px 16px;border-radius:999px;border:none;background:#4f7cff;color:#fff;font-size:13px'>一键启动</button>" +
         "</div>" +
-        "<p style='margin:14px 0 0;color:#6a6a78;font-size:12px'>复制安装脚本 → 粘贴到任意 Termux 即可一键安装后端</p>" +
+        // 安装区: 安装方式两行(左文案 + 右按钮)
+        "<div style='text-align:left'>" +
+        "<div style='display:flex;align-items:center;gap:8px;margin-bottom:8px'>" +
+        "<span style='font-size:13px;color:#c8c8d8;flex:1'>安装于 Termux</span>" +
+        "<button onclick=\"AndroidShell.launchTermuxInstall('dsh-install-termux.sh')\" " +
+        "style='padding:7px 14px;border-radius:8px;border:none;background:#4f7cff;color:#fff;font-size:13px'>一键安装</button>" +
+        "<button onclick=\"AndroidShell.copyInstallCommand('dsh-install-termux.sh')\" " +
+        "style='padding:7px 14px;border-radius:8px;border:1px solid #3a3a4a;background:transparent;color:#e6e6ef;font-size:13px'>复制指令</button>" +
+        "</div>" +
+        "<div style='display:flex;align-items:center;gap:8px'>" +
+        "<span style='font-size:13px;color:#c8c8d8;flex:1'>安装于 Termux-Ubuntu</span>" +
+        "<button onclick=\"AndroidShell.launchTermuxInstall('dsh-install-linux.sh')\" " +
+        "style='padding:7px 14px;border-radius:8px;border:none;background:#4f7cff;color:#fff;font-size:13px'>一键安装</button>" +
+        "<button onclick=\"AndroidShell.copyInstallCommand('dsh-install-linux.sh')\" " +
+        "style='padding:7px 14px;border-radius:8px;border:1px solid #3a3a4a;background:transparent;color:#e6e6ef;font-size:13px'>复制指令</button>" +
+        "</div></div>" +
+        "<script>" +
+        "function doConnect(){" +
+        "var v=document.getElementById('host').value.trim();" +
+        "if(!v){v='127.0.0.1:3080';}" +
+        "else if(!/^[a-zA-Z0-9.\\-]+:\\d{1,5}$/.test(v)){v=v+':3080';}" +
+        "AndroidShell.connect(v);}" +
+        "function renderHist(){" +
+        "try{var l=JSON.parse(AndroidShell.getRemoteHistory()||'[]');" +
+        "var b=document.getElementById('hist');b.innerHTML='';" +
+        "for(var i=0;i<l.length;i++){(function(h){" +
+        "var c=document.createElement('button');c.textContent=h;" +
+        "c.style.cssText='padding:5px 10px;border-radius:999px;border:1px solid #3a3a4a;" +
+        "background:#1a1a24;color:#c8c8d8;font-size:12px;cursor:pointer;';" +
+        "c.onclick=function(){AndroidShell.connect(h);};b.appendChild(c);})(l[i]);}}" +
+        "catch(e){}}" +
+        "renderHist();" +
+        "</script>" +
         "</div></body></html>";
 
     private WebView webView;
@@ -72,6 +111,8 @@ public class MainActivity extends Activity {
     private boolean edgeToEdge = true;
     private int insetTopOffset = 0;
     private int insetBottomOffset = 0;
+    // 手动进入离线页模式: 不自动探测回跳(等用户操作退出)
+    private volatile boolean manualOffline = false;
     private final Handler handler = new Handler(Looper.getMainLooper());
 
     @Override
@@ -93,6 +134,8 @@ public class MainActivity extends Activity {
 
         // 标准全面屏 insets 处理: 系统栏 insets + 偏移作为 padding 应用到容器,
         // WebView 视口自动缩小避开状态栏/手势条/挖孔。关闭全面屏时交给系统默认内缩。
+        // IME 键盘 insets 也并入底部 padding: edge-to-edge 下系统不会自动收缩视口给键盘,
+        // 不处理的话 composer 被键盘盖住(输入框不动/只上抬一半), 直到输入字符才触发重排恢复。
         container.setOnApplyWindowInsetsListener(new View.OnApplyWindowInsetsListener() {
             @Override
             public WindowInsets onApplyWindowInsets(View v, WindowInsets insets) {
@@ -103,10 +146,14 @@ public class MainActivity extends Activity {
                 }
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                     android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars());
+                    android.graphics.Insets ime = insets.getInsets(WindowInsets.Type.ime());
+                    // 底部取 bars 与 ime 的较大值(键盘弹出时 ime 已含手势条区域, 相加会多出一段空隙),
+                    // 偏移统一加在基线上: 键盘态=键盘高+偏移, 常态=手势条高+偏移
+                    int baseBottom = Math.max(bars.bottom, ime.bottom);
                     v.setPadding(bars.left,
                                  Math.max(0, bars.top + Math.round(insetTopOffset * density)),
                                  bars.right,
-                                 Math.max(0, bars.bottom + Math.round(insetBottomOffset * density)));
+                                 Math.max(0, baseBottom + Math.round(insetBottomOffset * density)));
                 } else {
                     v.setPadding(insets.getSystemWindowInsetLeft(),
                                  Math.max(0, insets.getSystemWindowInsetTop() + Math.round(insetTopOffset * density)),
@@ -169,15 +216,131 @@ public class MainActivity extends Activity {
                     return;
                 }
                 final String url = "http://" + target + "/";
+                // 记录远程连接历史(非本机才记, 上限 5)
+                if (!target.startsWith("127.0.0.1") && !target.startsWith("localhost")) {
+                    addRemoteHistory(target);
+                }
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
                         offline = false;
+                        manualOffline = false;
                         offlinePending = false;
                         handler.removeCallbacks(offlineCheck);
                         webView.loadUrl(url);
                     }
                 });
+            }
+
+            // 打开外链(GitHub 仓库), 仅允许 https
+            @JavascriptInterface
+            public void openUrl(String url) {
+                final String u = url == null ? "" : url.trim();
+                if (!u.startsWith("https://")) return;
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(u)));
+                        } catch (Exception e) {
+                            Toast.makeText(getApplicationContext(), "无法打开链接", Toast.LENGTH_SHORT).show();
+                        }
+                    }
+                });
+            }
+
+            // 最新 Termux 下载: 查 F-Droid API 拿最新 versionCode, 拼 APK 直链拉起浏览器直接下载
+            @JavascriptInterface
+            public void openTermuxDownload() {
+                new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        String url = "https://f-droid.org/packages/com.termux/"; // 兜底: 商店页
+                        try {
+                            HttpURLConnection conn = (HttpURLConnection)
+                                new URL("https://f-droid.org/api/v1/packages/com.termux").openConnection();
+                            conn.setConnectTimeout(5000);
+                            conn.setReadTimeout(5000);
+                            InputStream in = conn.getInputStream();
+                            ByteArrayOutputStream out = new ByteArrayOutputStream();
+                            byte[] buf = new byte[4096];
+                            int n;
+                            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+                            in.close();
+                            conn.disconnect();
+                            String json = out.toString("UTF-8");
+                            java.util.regex.Matcher m = java.util.regex.Pattern
+                                .compile("\"suggestedVersionCode\"\\s*:\\s*(\\d+)").matcher(json);
+                            if (m.find()) {
+                                url = "https://f-droid.org/repo/com.termux_" + m.group(1) + ".apk";
+                            }
+                        } catch (Exception e) { /* 保持兜底商店页 */ }
+                        final String u = url;
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                try {
+                                    startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(u)));
+                                } catch (Exception e2) {
+                                    Toast.makeText(getApplicationContext(), "无法打开下载链接", Toast.LENGTH_SHORT).show();
+                                }
+                            }
+                        });
+                    }
+                }).start();
+            }
+
+            // 复制一键安装指令(白名单脚本): curl 下载并执行, 粘贴到 Termux 即可
+            @JavascriptInterface
+            public void copyInstallCommand(String script) {
+                final String s = (script == null ? "" : script.trim());
+                if (!s.equals("dsh-install-termux.sh") && !s.equals("dsh-install-linux.sh")) return;
+                final String cmd = "curl -fsSL https://raw.githubusercontent.com/knGear/dsh-mobile/main/scripts/"
+                    + s + " -o $HOME/" + s + " && bash $HOME/" + s;
+                ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                cm.setPrimaryClip(ClipData.newPlainText("dsh install command", cmd));
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(getApplicationContext(), "安装指令已复制，粘贴到 Termux 执行即可", Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+
+            // 远程连接历史(JSON 数组, 最多 5 条, 最新在前)
+            @JavascriptInterface
+            public String getRemoteHistory() {
+                SharedPreferences sp = getSharedPreferences("dsh_shell", MODE_PRIVATE);
+                String cur = sp.getString("remote_history", "");
+                String[] parts = cur.split(",");
+                StringBuilder sb = new StringBuilder("[");
+                boolean first = true;
+                for (String p : parts) {
+                    if (p.isEmpty()) continue;
+                    if (!first) sb.append(',');
+                    sb.append('"').append(p).append('"');
+                    first = false;
+                }
+                sb.append(']');
+                return sb.toString();
+            }
+
+            @JavascriptInterface
+            public void addRemoteHistory(String host) {
+                if (host == null || host.isEmpty()) return;
+                SharedPreferences sp = getSharedPreferences("dsh_shell", MODE_PRIVATE);
+                String cur = sp.getString("remote_history", "");
+                String[] parts = cur.split(",");
+                java.util.List<String> list = new java.util.ArrayList<String>();
+                for (String p : parts) if (!p.isEmpty() && !p.equals(host)) list.add(p);
+                list.add(0, host);
+                while (list.size() > 5) list.remove(list.size() - 1);
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < list.size(); i++) {
+                    if (i > 0) sb.append(',');
+                    sb.append(list.get(i));
+                }
+                sp.edit().putString("remote_history", sb.toString()).apply();
             }
 
             // 全面屏开关 + 上下偏移(json: {enabled, top, bottom}, top/bottom 为 -10~10 dp)
@@ -206,6 +369,63 @@ public class MainActivity extends Activity {
             public String getEdgeToEdge() {
                 return "{\"enabled\":" + edgeToEdge + ",\"top\":" + insetTopOffset
                     + ",\"bottom\":" + insetBottomOffset + "}";
+            }
+
+            // 手动进入离线页(设置里"进入离线页"按钮): 显示 DSH 未启动页,
+            // 可远程连接 IP:端口 或复制一键安装脚本。手动模式不自动探测回跳,
+            // 由用户点"本机重试"(走 connect)或输入远程地址退出。
+            @JavascriptInterface
+            public void showOfflinePage() {
+                manualOffline = true;
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        showOffline();
+                    }
+                });
+            }
+
+            // 拉起 Termux 一键启动后端: 执行 dsh-web(统一命令, 原生/Ubuntu 均已注册)
+            @JavascriptInterface
+            public void launchTermuxStart() {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            if (!ensureTermuxRunCommandPermission()) return;
+                            startService(termuxRunCommand(new String[]{
+                                "-c",
+                                "if [ -x /data/data/com.termux/files/usr/bin/dsh-web ]; then exec /data/data/com.termux/files/usr/bin/dsh-web; else echo '未安装 dsh-web, 请先安装 dsh'; fi"
+                            }));
+                        } catch (Exception e) {
+                            Toast.makeText(getApplicationContext(),
+                                "拉起失败：请检查 Termux 设置里是否已允许外部应用执行命令", Toast.LENGTH_LONG).show();
+                        }
+                    }
+                });
+            }
+
+            // 拉起 Termux 一键安装: com.termux.RUN_COMMAND 自动执行安装脚本
+            // (先 curl 下载到 Termux home 再执行)。script 仅限白名单内两个脚本。
+            @JavascriptInterface
+            public void launchTermuxInstall(String script) {
+                final String s = (script == null ? "" : script.trim());
+                if (!s.equals("dsh-install-termux.sh") && !s.equals("dsh-install-linux.sh")) return;
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            if (!ensureTermuxRunCommandPermission()) return;
+                            startService(termuxRunCommand(new String[]{
+                                "-c",
+                                "curl -fsSL https://raw.githubusercontent.com/knGear/dsh-mobile/main/scripts/" + s + " -o $HOME/" + s + " && bash $HOME/" + s
+                            }));
+                        } catch (Exception e) {
+                            Toast.makeText(getApplicationContext(),
+                                "拉起失败：请检查 Termux 设置里是否已允许外部应用执行命令", Toast.LENGTH_LONG).show();
+                        }
+                    }
+                });
             }
 
             // 统一底色: web 层把实际背景色(如 #151517)上报, 壳把容器/系统栏底色设为同色,
@@ -294,6 +514,40 @@ public class MainActivity extends Activity {
         return (url != null && url.startsWith("http")) ? url : HOME_URL;
     }
 
+    // Termux RUN_COMMAND 意图(自适应): Termux 0.118+ 是 RunCommandService(非 Activity!),
+    // 优先标准包名 com.termux, 解析不到时退回 action 自动匹配(兼容变体/fork)。
+    private Intent termuxRunCommand(String[] args) {
+        Intent i = new Intent("com.termux.RUN_COMMAND");
+        i.putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/bash");
+        i.putExtra("com.termux.RUN_COMMAND_ARGUMENTS", args);
+        i.putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home");
+        i.setClassName("com.termux", "com.termux.app.RunCommandService");
+        if (resolveService(i) == null) {
+            i = new Intent("com.termux.RUN_COMMAND");
+            i.putExtra("com.termux.RUN_COMMAND_PATH", "/data/data/com.termux/files/usr/bin/bash");
+            i.putExtra("com.termux.RUN_COMMAND_ARGUMENTS", args);
+            i.putExtra("com.termux.RUN_COMMAND_WORKDIR", "/data/data/com.termux/files/home");
+        }
+        return i;
+    }
+
+    private android.content.pm.ResolveInfo resolveService(Intent i) {
+        try {
+            return getPackageManager().resolveService(i, 0);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    // 检查/请求 Termux RUN_COMMAND 权限(dangerous), 未授予返回 false
+    private boolean ensureTermuxRunCommandPermission() {
+        if (checkSelfPermission("com.termux.permission.RUN_COMMAND") == PackageManager.PERMISSION_GRANTED) {
+            return true;
+        }
+        requestPermissions(new String[]{"com.termux.permission.RUN_COMMAND"}, 1002);
+        return false;
+    }
+
     @Override
     public void onBackPressed() {
         if (webView != null && webView.canGoBack()) webView.goBack();
@@ -352,7 +606,7 @@ public class MainActivity extends Activity {
     private final Runnable retryProbe = new Runnable() {
         @Override
         public void run() {
-            if (!offline) return;
+            if (!offline || manualOffline) return; // 手动进入离线页: 不自动回跳
             if (isDshUp()) {
                 offline = false;
                 webView.loadUrl(HOME_URL);

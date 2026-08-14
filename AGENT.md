@@ -38,3 +38,8 @@ DeepSeek Harness（dsh）的 Android 移动前端，三部分：
 ## 发布
 
 见 `docs/build-release.md`（双资产：版本名 + 固定名 `dsh-mobile.apk`）。
+
+## 待办（TODO）
+
+- **顶部元素修改**：会话头部整理——去掉 Session log 按钮、把 agent 预设 + 后台任务按钮移到"对话/轨迹"选项卡行（结构已诊断：slot 出口包一层 div，header 定位法见 docs/plugin-mobile-ui.md DOM 锚点表；之前因插件加载问题搁置，wrapper 修复后根因已除）
+- **底部元素修改**：状态行（x轮x步）两行化/去空格/左对齐——方案已设计（组 span 计数 + br 插入 + dataset 幂等标记），此前撤销，可重做

@@ -273,10 +273,11 @@ window.__ModuleLoader__.load({
       confirm.onclick = function () {
         card.innerHTML =
           '<div style="font-size:15px">正在重启 dsh…</div>' +
-          '<div style="font-size:12px;color:#8a8a99;margin-top:8px">已断开，3 秒后自动重连</div>'
+          '<div style="font-size:12px;color:#8a8a99;margin-top:8px">已断开，约 10 秒后自动重连</div>'
         btnRow.remove()
         fetch('/api/dsh-restart', { method: 'POST' }).catch(function () { /* 服务即将重启 */ })
-        setTimeout(function () { window.location.reload() }, 3000)
+        // 后端重启需 6~10s 才就绪, 3s reload 必然扑空 → 10s 后再整页重连
+        setTimeout(function () { window.location.reload() }, 10000)
       }
       btnRow.appendChild(cancel)
       btnRow.appendChild(confirm)
@@ -345,12 +346,24 @@ window.__ModuleLoader__.load({
       var enhState = React.useState(false)
       var enh = enhState[0]
       var setEnh = enhState[1]
-      // 读取 host 端"通知内容强化"开关状态
+      var soundState = React.useState(true)
+      var sound = soundState[0]
+      var setSound = soundState[1]
+      // 读取 host 端"通知内容强化"开关状态 + 声音开关
       React.useEffect(function () {
         fetch('/api/dsh-progress-summary').then(function (r) { return r.json() })
           .then(function (d) { if (d && typeof d.on === 'boolean') setEnh(d.on) })
           .catch(function () { /* 忽略 */ })
+        fetch('/api/dsh-notify-settings').then(function (r) { return r.json() })
+          .then(function (d) { if (d && typeof d.sound === 'boolean') setSound(d.sound) })
+          .catch(function () { /* 忽略 */ })
       }, [])
+
+      function toggleSound(e) {
+        var on = e.target.checked
+        setSound(on)
+        fetch('/api/dsh-notify-settings?sound=' + (on ? '1' : '0'), { method: 'POST' }).catch(function () { /* 忽略 */ })
+      }
 
       function toggleEnh(e) {
         var on = e.target.checked
@@ -430,6 +443,15 @@ window.__ModuleLoader__.load({
             }, '连接'),
           ),
           err ? React.createElement('p', { style: { color: '#e06c6c', fontSize: 12, margin: '6px 0 0' } }, err) : null,
+          // 手动进入离线页(壳内 DSH 未启动页: 远程连接 / 复制安装脚本)
+          React.createElement('button', {
+            type: 'button', onClick: function () {
+              try {
+                if (typeof AndroidShell !== 'undefined' && AndroidShell.showOfflinePage) AndroidShell.showOfflinePage()
+              } catch (e) { /* 忽略 */ }
+            },
+            style: { display: 'block', width: '100%', marginTop: 8, padding: '9px 18px', borderRadius: 8, fontSize: 13, background: 'transparent', border: '1px solid var(--dsw-alias-border-l1, #3a3a4a)', color: 'inherit', cursor: 'pointer' },
+          }, '进入离线页'),
         ),
         // 2) 通知内容强化(按需, 额外 LLM 消耗)
         React.createElement('div', { style: { paddingTop: 4, borderTop: '1px solid var(--dsw-alias-border-l1, #2a2a36)' } },
@@ -441,6 +463,13 @@ window.__ModuleLoader__.load({
           ),
           React.createElement('p', { style: { margin: 0, fontSize: 12, color: 'var(--dsw-alias-label-tertiary, #888)' } },
             '开启后会生成当前对话动作摘要于通知中，这会增加token使用量。'),
+          // 通知声音/震动开关
+          React.createElement('label', {
+            style: { display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: 14, marginTop: 10 },
+          },
+            React.createElement('input', { type: 'checkbox', checked: sound, onChange: toggleSound }),
+            React.createElement('span', null, '通知声音/震动'),
+          ),
         ),
         // 3) 全面屏优化
         React.createElement('div', { style: { paddingTop: 4, borderTop: '1px solid var(--dsw-alias-border-l1, #2a2a36)' } },
@@ -487,7 +516,7 @@ window.__ModuleLoader__.load({
             style: { padding: '9px 18px', borderRadius: 8, fontSize: 13, background: 'var(--dsw-alias-accent-strong, #4f7cff)', color: '#fff', border: 'none', cursor: 'pointer' },
           }, '重启 dsh'),
         ),
-        // 4) 安全模式(逃生)
+        // 5) 安全模式(逃生)
         React.createElement('div', { style: { paddingTop: 12, borderTop: '1px solid var(--dsw-alias-border-l1, #2a2a36)' } },
           React.createElement('p', { style: { margin: '0 0 10px', fontSize: 13 } }, '安全模式'),
           React.createElement('label', {
@@ -515,43 +544,9 @@ window.__ModuleLoader__.load({
       } catch (e) { /* 忽略 */ }
 
       layoutCtx = ctx // 收起侧栏走官方 layout 服务
-      var slots = ctx.get('slots')
-      if (!slots) return
 
-      // 设置-移动端 始终注册(纯净模式也要保留此入口以便切回)
-      slots.inject('settings.section', function () {
-        return slots.register(
-          { name: 'settings.section', id: 'mobile', order: 25, label: '移动端' },
-          MobileSection,
-        )
-      })
-
-      // 纯净模式: 禁用一切移动端布局改动(重启按钮/侧栏抽屉/设置适配), 仅保留设置入口
-      if (getStored(KEY_PURE, '0') === '1') return
-
-      slots.inject('sidebar.footer.action', function () {
-        return slots.register(
-          { name: 'sidebar.footer.action', id: 'dsh-restart', order: 10 },
-          RestartButton,
-        )
-      })
-
-      applyLayout()
-
-      // 设置面板竖屏适配 CSS(注入一次)
-      try {
-        if (!document.getElementById('dsh-settings-css')) {
-          var sEl = document.createElement('style')
-          sEl.id = 'dsh-settings-css'
-          sEl.textContent = SETTINGS_CSS
-          document.head.appendChild(sEl)
-        }
-      } catch (e) { /* 忽略 */ }
-
-      // 布局观察器(健壮版): body/frame 无论何时就绪都能生效。
-      // 之前依赖"body 已存在", 插件 immediately 早期加载时 body 可能为 null → observe 抛错,
-      // MutationObserver 永不建立 → applyLayout 只跑一次(此时 frame 未渲染) → 安全区 padding 不生效,
-      // 内容跑到状态栏/手势条下面被遮住。
+      // ── 布局循环先行: 不依赖 slots/pure/任何前置, 保证 applyLayout 循环必定建立 ──
+      // (之前 slots 注册在前, 任一环节抛异常 → 循环不建 → 重启后样式"回去"且永不恢复)
       var raf = 0
       var observer = null
       var bootTimer = null
@@ -589,8 +584,7 @@ window.__ModuleLoader__.load({
           if (observer !== null) clearInterval(bootTimer)
         }, 200)
       }
-      // 安全循环无条件建立(不依赖 body/observer 建立时机):
-      // 之前挂在 ensureObserver 里, 页面加载时机不同会漏建 → "有时生效有时失效"
+      // 安全循环无条件建立(不依赖 body/observer 建立时机)
       if (safetyTimer === null) {
         safetyTimer = setInterval(function () { applyLayout() }, 1200)
       }
@@ -601,6 +595,34 @@ window.__ModuleLoader__.load({
         if (observer) observer.disconnect()
         window.removeEventListener('resize', onResize)
       })
+
+      // ── 以下为可选增强: slots 注册/设置适配 CSS, 失败不影响布局 ──
+      try {
+        var slots = ctx.get('slots')
+        if (!slots) return
+        // 设置-移动端 始终注册(纯净模式也要保留此入口以便切回)
+        slots.inject('settings.section', function () {
+          return slots.register(
+            { name: 'settings.section', id: 'mobile', order: 25, label: '移动端' },
+            MobileSection,
+          )
+        })
+        // 纯净模式: 禁用一切移动端布局改动(重启按钮/侧栏抽屉/设置适配), 仅保留设置入口
+        if (getStored(KEY_PURE, '0') === '1') return
+        slots.inject('sidebar.footer.action', function () {
+          return slots.register(
+            { name: 'sidebar.footer.action', id: 'dsh-restart', order: 10 },
+            RestartButton,
+          )
+        })
+        // 设置面板竖屏适配 CSS(注入一次)
+        if (!document.getElementById('dsh-settings-css')) {
+          var sEl = document.createElement('style')
+          sEl.id = 'dsh-settings-css'
+          sEl.textContent = SETTINGS_CSS
+          document.head.appendChild(sEl)
+        }
+      } catch (e) { /* 布局已先行建立, 增强功能失败可忽略 */ }
     }
 
     exports.name = name
