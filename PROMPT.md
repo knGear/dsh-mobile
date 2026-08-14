@@ -1,94 +1,99 @@
-# dsh-mobile 构建提示词（逆向提取，2026-08）
+# dsh-mobile — 跑分题（需求规格版，无实现提示）
 
-> 本文件是"项目总提示词"：把本仓库至今的全部实现与决策压缩为一套可直接执行的指令。
-> 任何 AI 接手本仓库，先读本文件 + `AGENT.md`，即可无缝继续开发或从零重建。
+> 本题只描述**需求与验收**，不提供任何实现线索。读完本文档，从零设计并实现一个可用的解决方案。
+> 平台/机制细节（dsh 的事件、接口、可扩展点）需要你自行调研与决策。
 
-## 角色与目标
+## 背景
 
-你是 dsh-mobile 的维护者。dsh-mobile 是 DeepSeek Harness（dsh web）的 Android 移动前端：
-**WebView 壳 APK + 本地 Cordis 插件**，把 dsh 变成手机上的 App 体验。全程**不 fork 上游 dsh**。
+dsh（DeepSeek Harness）是 DeepSeek 官方的 AI 编码/任务框架，其 Web UI 运行在本机
+`http://127.0.0.1:3080`。需求：为 dsh 在 Android 上提供完整的**移动端体验**——
+一个 WebView 壳 APK + 服务端本地扩展插件，使手机成为 dsh 的一等客户端。
 
-## 铁律（违反即返工）
+## 技术边界（环境事实，非实现提示）
 
-1. 不 fork 上游：所有改动只在壳注入 + 本地插件层，上游升级零冲突
-2. 只依赖稳定语义锚点（`data-*`/`role=`/事件名/JS 桥），绝不依赖上游 hash 类名
-3. Java 不用 lambda（老 d8 无 metafactory）——一律匿名类
-4. 插件 package.json exports 必须含 `"."` `"./client"` `"./package.json"`（否则客户端模块静默不加载）
-5. 插件 id 全树唯一（`mobile-` 前缀）；行内注释中文
-6. client.js 改完**刷新页面即生效**；index.js/壳改动需重启 dsh / 重编译装 APK
-7. 能放插件的绝不进壳；壳保持薄（WebView + 通知接收 + 安全区三件事）
-8. 所有 DOM 改动函数幂等（dataset 标记防重复），React 重建后由 1.2s applyLayout 循环自愈
+- Android 8+（minSdk 26），WebView 壳，目标设备同时装有 Termux（终端模拟器）
+- dsh 本体**不可修改**；只允许：①壳内注入 ②以本地插件形式扩展服务端/页面
+- 插件体系分两侧：服务端进程侧（可监听系统事件、提供 HTTP 路由、注册 AI 工具）与浏览器页面侧（可操作 DOM、渲染设置界面）
+- 必须兼容**无 root** 设备（root 只允许作为可选增强）
 
-## 架构（三层）
+## 功能需求
 
-```
-L1 文本层: README / scripts/*.sh / cordis.patch.yml / termux.properties
-L2 插件层: plugins/mobile-ui (client.js 页面注入 + index.js host 路由/工具)
-           plugins/mobile-AndroidNotify (index.js 通知状态机 + client.js)
-L3 壳层:   app/src/main/java/com/dsh/mobile/ (MainActivity + NotifyReceiver)
-```
+### A. 壳（APK）
 
-数据流：dsh 事件 → 插件 index.js → `am broadcast`(payload base64) → NotifyReceiver → 系统通知。
+1. 加载本机 dsh Web UI
+2. 全面屏：内容自动避开状态栏 / 挖孔 / 底部手势条 / **输入法键盘**；键盘弹出时输入框必须紧贴键盘顶部，收起后恢复
+3. 后端未启动时进入"未启动页"，提供：
+   - 输入 `IP:端口` 连接**远程** dsh 实例；空输入=本机默认；只输 IP 自动补默认端口
+   - 连接过的远程地址以可点小标签留存（上限 5，最新在前，点击直连）
+   - 项目仓库链接、**最新版 Termux 直链下载**（点击浏览器直接下载）
+   - **一键启动**后端（拉起 Termux 自动执行启动命令）
+   - 两种**一键安装**（Termux 原生方案 / Termux 内 Linux 方案）与"复制安装指令"
+4. 通知接收能力：支持"常驻（不可滑动关闭）/ 可清除 / 取消"三类语义；**声音可切换**（有声/静音两套）
+5. 首次启动自动请求通知权限（Android 13+）
 
-## 完整功能清单（现状快照 v0.30）
+### B. 通知（插件）
 
-### 壳（MainActivity）
-- WebView 加载 127.0.0.1:3080；`LOAD_NO_CACHE`+`clearCache`（每次拿最新前端）
-- edge-to-edge：`setOnApplyWindowInsetsListener` 容器 padding = 系统栏 insets + 用户偏移（`edge/top/bottom`，SharedPreferences `dsh_shell` 持久化）；**IME 键盘 insets 取 max(bars, ime) 并入底部**（键盘弹出 composer 被顶起，无空隙）
-- 离线状态机：连接失败 15s 宽限（offlineCheck）→ 离线页（`OFFLINE_HTML` 内嵌 Java 字符串）→ 3s 探测（retryProbe，`manualOffline` 时跳过）；手动进入离线页走 JS 桥 `showOfflinePage`
-- 离线页布局：鲸鱼图标 → DSH 未启动 → IP输入框（空=本地默认，纯IP自动补:3080）→ 远程连接历史 chips（上限5，点击直连）→ `GitHub 仓库`/`下载 Termux（F-Droid）`/`一键启动`（启动按钮在下载右侧）→ 安装两行（Termux / Termux-Ubuntu，各配 一键安装 + 复制指令）
-- JS 桥（window.AndroidShell）完整清单：connect / openUrl / openTermuxDownload(F-Droid API 查最新版直链) / copyInstallCommand(白名单) / launchTermuxInstall(script) / launchTermuxStart / getRemoteHistory / addRemoteHistory / setEdgeToEdge / getEdgeToEdge / setBackgroundColor / showOfflinePage / copyInstallScript
-- **Termux 拉起（RUN_COMMAND）**：0.118+ 是 `RunCommandService`（startService 不是 startActivity）；需 Manifest 声明 `com.termux.permission.RUN_COMMAND` + 运行时请求；`~/.termux/termux.properties` 写 `allow-external-apps=true`（脚本已自动做 + termux-reload-settings）；标准包名解析失败 → action 自动匹配兜底
-- 通知渠道（NotifyReceiver）：`dsh_notify_v2`（HIGH 有声）/ `dsh_notify_silent`（HIGH 静音）/ `dsh_status`（LOW 常驻）；payload 支持 channel 字段；渠道创建后属性不可改（静音靠预建渠道切换，不删除重建）
+1. 会话开始运行 → 静默拉起**常驻通知**（不可滑动关闭、不打扰），显示运行时间与当前动作/待办，随时间刷新
+2. **手动暂停** → 常驻消失，**不产生任何横幅**
+3. **正常完成 / 输出截断 / 故障** → 常驻消失 + 各自专属横幅（故障须显示错误原文）
+4. **同一会话任何时候最多存在一个通知**（新通知替换旧通知；三轮问答不留三条横幅）
+5. 点按任一通知 → 跳转到**对应会话**
+6. dsh 重启 / 插件卸载后，通知栏**无残留**
+7. 设置项：
+   - 通知内容强化：由 AI 生成动作摘要（需说明这会增加 token 消耗，默认关）
+   - 通知声音/震动开关（默认开）
+8. 提供"发通知"工具：AI 可在任务关键节点主动推送；工具说明即使用指南（何时用/怎么写好文案/避免打扰）
 
-### 通知插件（mobile-AndroidNotify）
-- **通知状态机**：开始运行→静默常驻（ongoing 不可滑关，LOW 渠道）；手动暂停（finish reason=aborted）→注销常驻无横幅；正常完成（stop）→注销+完成横幅；截断（max-tokens）→注销+"截断"横幅；故障（agent/error）→注销+故障横幅（错误码原文）；插件卸载→全量注销（防残留）；点按任意通知→跳对应会话（url=sessionUrl(sid)）
-- **一会话一通知**：常驻 id = `ONGOING_BASE(1000)+hash(sid)%900000`；结果横幅 id = `NOTIFY_BASE(2000000)+hash(sid)`（同会话新横幅覆盖旧横幅）
-- 事件映射：agent/status(running→postOngoing；idle→注销+按标记发横幅)、session/event(finish 的 reason.kind 打标记：aborted→paused、max-tokens→truncated)、tools/result(记 lastTool/todo 刷新常驻)、agent/error、agent/disposed
-- 开关（state.json `{progressSummary, sound}`）：强化开关（LLM 摘要 ≤15字，默认关）+ 声音开关（默认开→广播自动注入渠道）
-- notify 工具：description 即调用指南（何时用/参数/注意）
-- 宽容性：`am broadcast` 直发优先，su 兜底
+### C. 移动 UI（插件）
 
-### UI 插件（mobile-ui）
-- applyLayout 循环**无条件建立**（`setInterval(applyLayout, 1200)` + MutationObserver rAF 节流），不依赖 slots/body 时机（历史教训：依赖前置会导致重启后布局失效）
-- DOM 锚点：frame=`[data-side="sidebar"/"details"]` 的 parentElement；会话根=`[data-conversation-scroll]` 的 parentElement；**header 在 scroll 前一个兄弟（slot 出口会包一层 div）内**；选项卡=`[role="tablist"]`；输入区=`[data-composer-seat]`；设置=`[data-slot="settings.section"]`
-- 侧栏抽屉：展开 sidebarCol absolute 覆盖（grid 首列 0px）；收起=透明 `<button>` 遮罩（z35）点击→官方 `ctx.get('layout').toggleSidebar()`（inject 声明 layout）
-- 移动设置（MobileSection，React，注册 settings.section id=mobile order=25）：连接地址+进入离线页 / 通知强化+声音开关 / 全面屏优化（开关+上下偏移滑杆）/ 重启 dsh（确认遮罩→10s 重连）/ 安全模式（纯净模式+原版UI）
-- 纯净/原版模式：`?plain=1` 或 `dsh.pure=1` → 跳过全部注入
+1. **侧栏抽屉化**：展开时覆盖对话内容（对话不被压缩）；收起方式=点击透明遮罩或切换钮；全程使用官方状态切换（不篡改内部状态）
+2. 设置面板移动端适配：竖屏不横向溢出、卡片自适应宽度
+3. 移动端设置页包含：连接地址 / 通知强化 / 通知声音 / 全面屏开关与上下偏移微调 / 重启服务（二次确认，后端重启约 10 秒后自动重连）/ 纯净模式（一键禁用全部移动端改动，回到原版 UI，且可切回）
+4. 所有布局改动必须对上游升级**免疫**（不得依赖内部生成类名）
 
-### 安装脚本（scripts/）
-- `dsh-install-termux.sh`：Termux 原生（pkg 初始化→工具链→npm i --ignore-scripts→node-pty/koffi clang 编译（bionic 补 spawn.h）→sharp wasm→SELinux 检测→dsh wrapper(--expose-internals)→dsh-web 启动器→allow-external-apps→插件）
-- `dsh-install-linux.sh`：proot Ubuntu（默认，无 Debian 选项）→ npm 原装 → wrapper → dsh-web → 插件
-- `dsh-addone-mobile.sh` / `.mjs`：已有 dsh 追加插件（bash 版 + Node 跨平台版，Windows 用 curl.exe）
-- 所有脚本幂等（grep -q 防重复），步骤编号 `X/N` 同步更新
+### D. 安装与分发
 
-## 关键教训（踩过的坑）
+1. 一键安装脚本 A：Termux 原生方案（环境初始化、安装、原生依赖编译、SELinux 兼容、生成启动命令）——无 root 可跑
+2. 一键安装脚本 B：Termux 内 Linux 方案（Ubuntu 发行版）——同样一键化
+3. 已有 dsh 的环境（PC/服务器/Termux）追加两个插件：提供 bash 版与跨平台 Node 版
+4. 两种安装方案最终**统一启动命令**
+5. "允许外部应用拉起 Termux 执行"的开关由安装脚本自动完成（无需用户手动进设置）
+6. 所有脚本幂等（重复运行安全）
 
-1. dsh client bundle **实时读文件**（改 client.js 不用重启服务器，刷新即生效）；host 插件是进程加载（要重启）
-2. 页面重启后不自动重载旧 JS（曾加 rev 看门狗/自愈刷新，已撤——保持简单）
-3. `getComputedStyle` 匹配条件会被自己的改动破坏（样式改后不再匹配）→ 用 dataset 标记进入"已处理"状态
-4. slot 出口会包一层无 class 的 div（header 不在 root.children 直接子级）
-5. 通知渠道创建后不可改属性（声音/震动）；RUN_COMMAND 是 Service 不是 Activity
-6. 远程连接历史、全面屏偏移存 SharedPreferences `dsh_shell`；插件开关存 state.json
-7. /sdcard 的 FUSE 不支持硬链接（write 工具会失败，用 bash 写文件）；git 需 safe.directory
+### E. 文档
 
-## 开发流程
+仓库内置文档体系（总览 + 各模块指南 + 自定义指南），让一个全新 AI 不看任何历史对话即可继续维护。
 
-1. 读 AGENT.md + docs/ 相关主题 + PROMPT.md 本文件
-2. 改完：`node --check`（js）/ `bash build.sh`（壳，proot Debian 内）
-3. client 改动刷新验证；host 改动重启 dsh；壳改动安装 APK
-4. 同步开发目录 ↔ 仓库（app/src、plugins、scripts）
-5. 文档同步（AGENT.md / docs / README / PROMPT.md）
+## 硬性约束
 
-## 发布流程
+- 不修改 dsh 本体；只用其**稳定公开接口**（接口需要你自行调研；且必须对上游升级免疫）
+- 无 root 设备全流程可用（root 仅可选增强，失败不阻塞）
+- 保持简单可维护：薄壳、插件化、不引入重型依赖
 
-1. bump `AndroidManifest.xml` versionCode/versionName
-2. `git tag v<版本> && git push origin v<版本>`
-3. Release 传**双资产**：`DSH-v<版本>.apk` + 固定名 `dsh-mobile.apk`（离线页"最新版"依赖 `releases/latest/download/dsh-mobile.apk`）
-4. README 版本历史更新
+## 验收清单（可测行为）
 
-## 待办
+- [ ] 键盘弹出：输入框紧贴键盘顶，无空隙；收起恢复
+- [ ] 通知：三轮问答通知栏只留最新一条；手动暂停零横幅；截断有专属横幅；dsh 重启后通知栏干净
+- [ ] 点按任一通知跳转到对应会话
+- [ ] 未启动页：空输入连本机、纯 IP 自动补端口、远程历史标签点击直连、Termux 直链可下载、一键启动拉起 Termux、两个安装按钮与复制指令可用
+- [ ] 声音开关关闭后横幅无声音无震动（常驻仍静默）
+- [ ] 无 root 设备按脚本全流程安装成功并可用
+- [ ] 侧栏抽屉：展开覆盖不压缩对话、遮罩/按钮收起、不破坏官方状态
 
-- 顶部元素修改：会话头部整理（去 Session log / agent 预设+后台任务按钮移"对话/轨迹"行）
-- 底部元素修改：状态行（x轮x步）两行化/去空格/左对齐
-- 主题/换肤：社区做（docs/customize.md §7 有路线图，本项目不做）
+## 加分项
+
+- 主题化（换肤）预留扩展点（不实现也可，说明设计即可）
+- 离线页有品牌化视觉元素（吉祥物等）
+- 通知渠道/开关体系设计合理、易扩展
+
+## 交付物
+
+- Android 工程（可构建出签名 APK）
+- 两个插件完整源码
+- 三个安装脚本
+- 内置文档体系
+- （可选）说明你调研到的平台机制与设计决策
+
+---
+
+*跑分说明：评分维度 = 功能完整度 / 无 root 兼容性 / 上游升级免疫 / 代码与文档可维护性 / 设计决策合理性。*
