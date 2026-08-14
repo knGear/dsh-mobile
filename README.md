@@ -23,6 +23,51 @@ dsh（DeepSeek Harness）是 DeepSeek 官方的 AI 编码/任务框架。本项�
 - 移动端设置选项卡：连接地址 / 通知强化 / 全面屏优化（开关+偏移）/ 重启 dsh / 安全模式
 - 纯净模式：一键禁用全部移动端改动，回到原版 UI
 
+## 安装
+
+### 1. Termux
+
+从 [F-Droid](https://f-droid.org/packages/com.termux/) 安装 Termux（不要用 Play 商店版），打开后先执行：
+
+```bash
+pkg update && pkg upgrade -y
+```
+
+### 2. 后端：在 Termux 里安装 dsh 原版
+
+**方式 A：官方 npm 包（标准安装）**
+
+```bash
+pkg install -y nodejs npm cmake make clang curl
+npm install -g @deepseek-ai/dsh
+dsh web        # 启动 web 界面, 默认 http://127.0.0.1:3080
+```
+
+> ⚠ **Termux 原生环境的依赖修补**：dsh 的原生依赖（node-pty/koffi/sharp）在 Android 上没有现成二进制——
+> npm 安装需加 `--ignore-scripts` 跳过原生编译，再手动编译 node-pty/koffi（bionic 缺 `spawn.h` 需先补）、
+> 把 sharp 换成 wasm 版。**完整可执行步骤见仓库自带 `app/src/main/res/raw/install_backend.sh`**（一键执行全部步骤）。
+
+**方式 B：一键脚本（推荐）**
+
+安装 APK 后打开 App → 离线页点「复制安装脚本」→ 粘贴到 Termux 执行，自动完成上述全部步骤并启动 dsh web。
+
+> 提示：在 proot Debian 等标准 Linux 环境（proot-distro）里 npm 可原样安装，无需修补，同样能跑。
+
+### 3. 前端：安装 APK
+
+GitHub [Releases](https://github.com/knGear/dsh-mobile/releases) 下载 `DSH-v0.01.apk`（Android 8.0+，允许未知来源）。
+打开即连本机 `127.0.0.1:3080`；局域网其他设备可在离线页输入 `IP:端口` 远程连接。
+
+### 4. 插件（可选但推荐）
+
+```bash
+git clone git@github.com:knGear/dsh-mobile.git
+mkdir -p ~/.dsh/profiles/node_modules
+cp -r dsh-mobile/plugins/mobile-ui dsh-mobile/plugins/mobile-AndroidNotify ~/.dsh/profiles/node_modules/
+# 把 plugins/cordis.patch.yml 的内容插入 ~/.dsh/profiles/web/cordis.patch.yml(见下节)
+dsh web        # 重启后生效
+```
+
 ## 从源码构建
 
 ```bash
@@ -67,6 +112,7 @@ plugins/
 - dsh：`@deepseek-ai/dsh@0.1.0-rc.6`（npm）
 - Android：minSdk 26 / target 34（Android 8.0+）
 - 布局锚点只用 dsh 稳定语义属性（`data-*` / `role=`），不依赖 hash 类名，上游升级不碎
+- **无 root 可用**：安装/通知/远程连接均不依赖 root（仅旧版设备的 SELinux 补丁为可选步骤，失败自动跳过）
 
 ## 版本历史
 
