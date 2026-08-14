@@ -48,10 +48,18 @@ npm i -g @deepseek-ai/dsh
 dsh web        # 启动, 终端会弹出网址信息(默认 http://127.0.0.1:3080)
 ```
 
-**方式二：一键脚本（Termux 原生环境）**
+**方式二：一键脚本（推荐，自动完成方式一全部步骤）**
 
-安装 APK 后打开 App → 离线页点「复制安装脚本」→ 粘贴到 Termux 执行，自动完成 Termux 原生的依赖修补
-（node-pty/koffi 编译、sharp wasm 版等，完整步骤见 `app/src/main/res/raw/install_backend.sh`）并启动 dsh web。
+```bash
+# 在 Termux 内执行
+pkg install -y curl
+curl -L -o install-dsh.sh https://raw.githubusercontent.com/knGear/dsh-mobile/main/scripts/install-dsh.sh
+bash install-dsh.sh
+```
+
+脚本自动完成：装 proot-distro + Debian → 装 nodejs/npm → `npm i -g @deepseek-ai/dsh` → 校验原生模块
+（koffi/node-pty/sharp）→ SELinux hardlink 检测（有 root 自动修复，无 root 给出指引与规避方案）→
+生成 `dsh-web` 启动命令并探测验证。首次约 10~20 分钟。
 
 ### 3. 前端：安装 APK
 
