@@ -33,27 +33,11 @@ dsh（DeepSeek Harness）是 DeepSeek 官方的 AI 编码/任务框架。本项�
 pkg update && pkg upgrade -y
 ```
 
-### 2. 后端：在 Termux 里安装 dsh 原版（二选一）
+### 2. 后端：三种方式任选其一
 
-**快速上手（推荐完整流程）**：安装 Termux → 运行方式二脚本（自动装好 dsh + 两个移动端插件）→ 安装 APK → 首次打开自动申请通知授权 → 完成。
-
-**方式一：Termux 内的 Linux 直接安装**（proot Debian 等标准 Linux 环境，npm 原样安装，无需任何修补）
+**方式一：Android shell 一键脚本（Termux 原生，不需要先装 Linux）**
 
 ```bash
-# 前置: 装一个 Linux 发行版(Termux 内)
-pkg install proot-distro
-proot-distro install debian
-proot-distro login debian
-# 以下在 Linux 内执行
-apt update && apt install -y nodejs npm
-npm i -g @deepseek-ai/dsh
-dsh web        # 启动, 终端会弹出网址信息(默认 http://127.0.0.1:3080)
-```
-
-**方式二：一键脚本（推荐，自动完成方式一全部步骤）**
-
-```bash
-# 在 Termux 内执行
 pkg install -y curl
 curl -L -o install-dsh.sh https://raw.githubusercontent.com/knGear/dsh-mobile/main/scripts/install-dsh.sh
 bash install-dsh.sh
@@ -63,21 +47,35 @@ bash install-dsh.sh
 （koffi/node-pty/sharp）→ SELinux hardlink 检测（有 root 自动修复，无 root 给出指引与规避方案）→
 生成 `dsh-web` 启动命令并探测验证 → **自动安装两个移动端插件并挂载**。首次约 10~20 分钟。
 
-**方式三：独立插件安装（dsh 已用别的方式装好时）**
+**方式二：Termux 内的 Linux（官方 npm 安装，与普通 Linux 完全一样）**
 
-PC / 服务器 / Termux 等任意已装好 dsh 的环境，只需补装两个移动端插件：
+```bash
+pkg install proot-distro
+proot-distro install debian
+proot-distro login debian
+# 以下在 Linux 内执行
+apt update && apt install -y nodejs npm
+npm i -g @deepseek-ai/dsh
+dsh web        # 启动, 终端会弹出网址信息(默认 http://127.0.0.1:3080)
+```
+
+> PC / 服务器等普通 Linux 环境同样适用（跳过 proot 步骤，直接 npm 安装）。
+
+**方式三：已有 dsh → 追加两个移动端插件包**
+
+PC / 服务器 / Termux / proot 等任意已装好 dsh 的环境，只需补装移动端插件：
 
 ```bash
 curl -L -o install-plugins.sh https://raw.githubusercontent.com/knGear/dsh-mobile/main/scripts/install-plugins.sh
 bash install-plugins.sh    # 重复运行 = 更新到最新版
 ```
 
-然后安装 APK，连接本机或远程（离线页输入 `IP:端口`）即可获得增强体验。
+### 3. 前端：APK 连接以上三种情况的本地/远程 dsh
 
-### 3. 前端：安装 APK
+GitHub [Releases](https://github.com/knGear/dsh-mobile/releases) 下载 `DSH-v0.01.apk`（Android 8.0+，允许未知来源），首次启动会自动申请通知授权（Android 13+，会话状态/完成提醒需要）。打开 App 后：
 
-GitHub [Releases](https://github.com/knGear/dsh-mobile/releases) 下载 `DSH-v0.01.apk`（Android 8.0+，允许未知来源）。
-打开即连本机 `127.0.0.1:3080`；首次启动会自动申请通知授权（Android 13+，会话状态/完成提醒需要）；局域网其他设备可在离线页输入 `IP:端口` 远程连接。
+- **本地 dsh**（方式一/二的 Termux 场景）：默认直连 `127.0.0.1:3080`，开箱即用
+- **远程 dsh**（方式三的 PC/服务器，或局域网其他设备）：离线页输入 `IP:端口` 连接
 
 ## 从源码构建
 
