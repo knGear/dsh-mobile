@@ -39,7 +39,7 @@ bash dsh-install-termux.sh
 3. 安装 APK：点击 [Releases](https://github.com/knGear/dsh-mobile/releases) 下载最新版即可
 4. 配置 API → 享用
 
-### ② termux-buntu（兼容）
+### ② termux-ubuntu（稳定）
 
 1. 安装 [Termux](https://f-droid.org/packages/com.termux/)（F-Droid 版）
 2. Termux 里执行（脚本自动：初始化 → 安装 Ubuntu → 装 dsh → 插件挂载）：
@@ -57,25 +57,36 @@ bash dsh-install-linux.sh
 
 适用于 PC / 服务器 / Termux 等任意环境。若尚未安装 dsh，先用官方命令安装：
 
+**官方安装 dsh：**
+
 ```bash
 npm i -g @deepseek-ai/dsh
 dsh web
 ```
 
-然后安装移动端插件（三选一）：
+然后安装移动端插件，按你的平台选一个（任选其一，重复运行 = 更新到最新版）：
+
+**bash 版（Linux / macOS / Termux）：**
 
 ```bash
-# 方式 A：让 AI 看本项目按说明安装
-# 方式 B：bash（Linux/macOS/Termux）
 curl -L -o dsh-addone-mobile.sh https://raw.githubusercontent.com/knGear/dsh-mobile/main/scripts/dsh-addone-mobile.sh
 bash dsh-addone-mobile.sh
-# 方式 C：Node 跨平台（Windows 用 PowerShell 的 curl.exe / 或直接 node 运行 .mjs）
+```
+
+**Node 跨平台版（Windows 等任意平台，需 Node 18+）：**
+
+```powershell
 curl.exe -L -o dsh-addone-mobile.mjs https://raw.githubusercontent.com/knGear/dsh-mobile/main/scripts/dsh-addone-mobile.mjs
 node dsh-addone-mobile.mjs
 ```
 
-以上任选一，重复运行 = 更新到最新版。最后安装 APK：点击 [Releases](https://github.com/knGear/dsh-mobile/releases) 下载最新版即可，
-连接本机（默认 `127.0.0.1:3080`）或远程（离线页输入 `IP:端口`），配置 API → 享用。
+或者，复制下面的仓库链接直接贴给 AI，让它帮你完成安装配置：
+
+```text
+https://github.com/knGear/dsh-mobile
+```
+
+最后安装 APK：点击 [Releases](https://github.com/knGear/dsh-mobile/releases) 下载最新版即可，连接本机（默认 `127.0.0.1:3080`）或远程（离线页输入 `IP:端口`），配置 API → 享用。
 
 ## 从源码构建
 
