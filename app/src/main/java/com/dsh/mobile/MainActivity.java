@@ -51,9 +51,9 @@ public class MainActivity extends Activity {
         // ── 正文 ──
         // 1) 引导安装: 第一行=下载(Termux)并部署于; 第二行=两个部署按钮(点击=复制, 长按=执行)
         "<div style='margin:0 0 6px;-webkit-touch-callout:none'>" +
-        "<div style='font-size:13px;color:#c8c8d8;line-height:2.2'>下载 " +
+        "<div style='font-size:13px;color:#c8c8d8;line-height:2.2'>下载安装 " +
         "<button onclick=\"AndroidShell.openTermuxDownload()\" " +
-        "style='padding:1px 10px;border-radius:6px;border:1px solid #6b8aff;background:transparent;color:#6b8aff;text-decoration:underline;font-size:13px;line-height:1.9'>Termux</button> 并部署于</div>" +
+        "style='padding:1px 10px;border-radius:6px;border:1px solid #6b8aff;background:transparent;color:#6b8aff;text-decoration:underline;font-size:13px;line-height:1.9'>Termux</button> 并部署 dsh 于</div>" +
         "</div>" +
         "<div style='margin:0 0 12px;padding-left:20px;-webkit-touch-callout:none'>" +
         "<div style='font-size:13px;line-height:2.2'>" +
@@ -65,8 +65,8 @@ public class MainActivity extends Activity {
         // 3) 已安装? 在 termux 运行 (dsh-web) 即可连接
         "<div style='margin:0 0 12px;-webkit-touch-callout:none'>" +
         "<div style='font-size:13px;color:#8a8a99;line-height:2.2'>已安装？在 termux 运行 " +
-        "<button onclick=\"AndroidShell.launchTermuxStart()\" " +
-        "style='padding:1px 10px;border-radius:6px;border:1px solid #4dd0e1;background:transparent;color:#4dd0e1;font-size:13px;line-height:1.9;font-weight:600'>dsh-web</button> 即可连接</div>" +
+        "<button id='start-dsh' " +
+        "style='padding:1px 10px;border-radius:6px;border:1px solid #4dd0e1;background:transparent;color:#4dd0e1;font-size:13px;line-height:1.9;font-weight:600;-webkit-user-select:none;user-select:none;'>dsh-web</button> 即可连接</div>" +
         "</div>" +
         // 4) 输入框: 空=本地默认 127.0.0.1:3080, 纯 IP 自动补 :3080(doConnect 处理)
         "<div style='display:flex;gap:8px;margin-bottom:10px'>" +
@@ -89,6 +89,8 @@ public class MainActivity extends Activity {
         "style='padding:8px 16px;border-radius:8px;border:1px solid #6b8aff;background:transparent;color:#6b8aff;text-decoration:underline;font-size:13px'>dsh-mobile 仓库</button>" +
         "<button onclick=\"AndroidShell.openUrl('https://github.com/deepseek-ai/dsh')\" " +
         "style='padding:8px 16px;border-radius:8px;border:1px solid #6b8aff;background:transparent;color:#6b8aff;text-decoration:underline;font-size:13px'>dsh 仓库</button>" +
+        "<button id='dsh-notify-btn2' onclick=\"AndroidShell.requestNotifyPermission()\" " +
+        "style='padding:8px 16px;border-radius:8px;border:1px solid #e6e6ef;background:transparent;color:#e6e6ef;font-size:13px'>开启通知</button>" +
         // 2) 通知引导: (开启通知) 获取增强体验 — 已授权: 按钮灰 + 文末 ✓
         "<div style='margin:0 0 12px;-webkit-touch-callout:none'>" +
         "<div style='font-size:13px;color:#c8c8d8;line-height:2.2'>" +
@@ -104,10 +106,26 @@ public class MainActivity extends Activity {
         "<div style='margin-top:6px;font-size:10px;color:#5a5a6a;text-align:center'>点击复制</div></div>" +
         "</div>" +
         "<script>" +
+        "function bindInst(){" +
+        "var L=[['inst-termux','dsh-install-termux.sh'],['inst-linux','dsh-install-linux.sh'],['start-dsh','dsh-web'],['start-dsh2','dsh-web'],['fx-browser','browser'],['fx-repair','repair'],['fx-simple','simple'],['fx-clean','clean']];" +
+        "for(var i=0;i<L.length;i++){(function(id,sc){" +
+        "var b=document.getElementById(id);if(!b)return;" +
+        "var orig=b.textContent,t=null,long=false,fx=id.indexOf('fx-')===0,start=id.indexOf('start-dsh')===0;" +
+        "b.addEventListener('touchstart',function(){long=false;t=setTimeout(function(){long=true;try{if(fx){AndroidShell.fixRun(sc);}else if(start){AndroidShell.launchTermuxStart();}else{AndroidShell.launchTermuxInstall(sc);}}catch(e){}},700);},{passive:true});" +
+        "b.addEventListener('touchend',function(){if(t){clearTimeout(t);t=null;}if(long){return;}try{if(fx){AndroidShell.fixCopy(sc);}else if(start){AndroidShell.copyStartCommand();}else{AndroidShell.copyInstallCommand(sc);}}catch(e){}b.textContent='已复制 ✓';setTimeout(function(){b.textContent=orig;},1200);});" +
+        "b.addEventListener('touchmove',function(){if(t){clearTimeout(t);t=null;}});" +
+        "b.addEventListener('click',function(e){if(long){e.preventDefault();e.stopPropagation();long=false;}});" +
+        "})(L[i][0],L[i][1]);}" +
+        "}" +
+        "bindInst();" +
         "function doConnect(){" +
-        "var v=document.getElementById('host').value.trim();" +
-        "if(!v){v='127.0.0.1:3080';}" +
-        "else if(!/^[a-zA-Z0-9.\\-]+:\\d{1,5}$/.test(v)){v=v+':3080';}" +
+        "var i=document.getElementById('host');" +
+        "var v=i.value.trim();" +
+        "if(!v){v='127.0.0.1:3080';}" +            // 空 → 默认本机
+        "else if(/^\\d{1,5}$/.test(v)){v='127.0.0.1:'+v;}" +   // 纯端口: 3081 → 127.0.0.1:3081
+        "else if(/^:\\d{1,5}$/.test(v)){v='127.0.0.1'+v;}" +   // :3081 → 127.0.0.1:3081
+        "else if(!/^[a-zA-Z0-9.\\-]+:\\d{1,5}$/.test(v)){v=v+':3080';}" +  // 纯 host: 补 3080
+        "i.value=v;" +                              // 输入框回填补全后的地址
         "AndroidShell.connect(v);}" +
         "function renderHist(){" +
         "try{var l=JSON.parse(AndroidShell.getRemoteHistory()||'[]');" +
@@ -135,8 +153,8 @@ private static final String OFFLINE_HTML_EN =
         "<h2 style='margin:16px 0 8px;font-weight:600'>__TITLE__</h2>" +
         // 说明句: dsh-web/Termux 为句内按钮(点击=启动后端 / 下载Termux)
         "<p style='margin:0 0 18px;color:#8a8a99;line-height:2.2'>Run " +
-        "<button onclick=\"AndroidShell.launchTermuxStart()\" " +
-        "style='padding:1px 10px;border-radius:6px;border:1px solid #4dd0e1;background:transparent;color:#4dd0e1;font-size:13px;line-height:1.9;font-weight:600'>dsh-web</button> in " +
+        "<button id='start-dsh' " +
+        "style='padding:1px 10px;border-radius:6px;border:1px solid #4dd0e1;background:transparent;color:#4dd0e1;font-size:13px;line-height:1.9;font-weight:600;-webkit-user-select:none;user-select:none;'>dsh-web</button> in " +
         "<button onclick=\"AndroidShell.openTermuxDownload()\" " +
         "style='padding:1px 10px;border-radius:6px;border:1px solid #6b8aff;background:transparent;color:#6b8aff;text-decoration:underline;font-size:13px;line-height:1.9'>Termux</button>, then connect</p>" +
         // 输入框: 空=本地默认 127.0.0.1:3080, 纯 IP 自动补 :3080(doConnect 处理)
@@ -152,9 +170,9 @@ private static final String OFFLINE_HTML_EN =
         // ── Body ──
         // 1) Install guide: line1=Download (Termux) and deploy on; line2=two deploy buttons
         "<div style='margin:0 0 6px;-webkit-touch-callout:none'>" +
-        "<div style='font-size:13px;color:#c8c8d8;line-height:2.2'>Download " +
+        "<div style='font-size:13px;color:#c8c8d8;line-height:2.2'>Download &amp; install " +
         "<button onclick=\"AndroidShell.openTermuxDownload()\" " +
-        "style='padding:1px 10px;border-radius:6px;border:1px solid #6b8aff;background:transparent;color:#6b8aff;text-decoration:underline;font-size:13px;line-height:1.9'>Termux</button> and deploy on</div>" +
+        "style='padding:1px 10px;border-radius:6px;border:1px solid #6b8aff;background:transparent;color:#6b8aff;text-decoration:underline;font-size:13px;line-height:1.9'>Termux</button> and deploy dsh on</div>" +
         "</div>" +
         "<div style='margin:0 0 12px;padding-left:20px;-webkit-touch-callout:none'>" +
         "<div style='font-size:13px;line-height:2.2'>" +
@@ -166,8 +184,8 @@ private static final String OFFLINE_HTML_EN =
         // 3) Already installed? Run (dsh-web) in termux to connect
         "<div style='margin:0 0 12px;-webkit-touch-callout:none'>" +
         "<div style='font-size:13px;color:#8a8a99;line-height:2.2'>Already installed? Run " +
-        "<button onclick=\"AndroidShell.launchTermuxStart()\" " +
-        "style='padding:1px 10px;border-radius:6px;border:1px solid #4dd0e1;background:transparent;color:#4dd0e1;font-size:13px;line-height:1.9;font-weight:600'>dsh-web</button> in termux to connect</div>" +
+        "<button id='start-dsh2' " +
+        "style='padding:1px 10px;border-radius:6px;border:1px solid #4dd0e1;background:transparent;color:#4dd0e1;font-size:13px;line-height:1.9;font-weight:600;-webkit-user-select:none;user-select:none;'>dsh-web</button> in termux to connect</div>" +
         "</div>" +
         // 4) Input: empty=127.0.0.1:3080, bare IP auto-appends :3080
         "<div style='display:flex;gap:8px;margin-bottom:10px'>" +
@@ -190,6 +208,8 @@ private static final String OFFLINE_HTML_EN =
         "style='padding:8px 16px;border-radius:8px;border:1px solid #6b8aff;background:transparent;color:#6b8aff;text-decoration:underline;font-size:13px'>dsh-mobile repo</button>" +
         "<button onclick=\"AndroidShell.openUrl('https://github.com/deepseek-ai/dsh')\" " +
         "style='padding:8px 16px;border-radius:8px;border:1px solid #6b8aff;background:transparent;color:#6b8aff;text-decoration:underline;font-size:13px'>dsh repo</button>" +
+        "<button id='dsh-notify-btn2' onclick=\"AndroidShell.requestNotifyPermission()\" " +
+        "style='padding:8px 16px;border-radius:8px;border:1px solid #e6e6ef;background:transparent;color:#e6e6ef;font-size:13px'>Enable Notify</button>" +
         // 2) Notify guide: (Enable notifications) for enhanced experience — granted: gray + ✓
         "<div style='margin:0 0 12px;-webkit-touch-callout:none'>" +
         "<div style='font-size:13px;color:#c8c8d8;line-height:2.2'>" +
@@ -205,10 +225,26 @@ private static final String OFFLINE_HTML_EN =
         "<div style='margin-top:6px;font-size:10px;color:#5a5a6a;text-align:center'>Tap to copy</div></div>" +
         "</div>" +
         "<script>" +
+        "function bindInst(){" +
+        "var L=[['inst-termux','dsh-install-termux.sh'],['inst-linux','dsh-install-linux.sh'],['start-dsh','dsh-web'],['start-dsh2','dsh-web'],['fx-browser','browser'],['fx-repair','repair'],['fx-simple','simple'],['fx-clean','clean']];" +
+        "for(var i=0;i<L.length;i++){(function(id,sc){" +
+        "var b=document.getElementById(id);if(!b)return;" +
+        "var orig=b.textContent,t=null,long=false,fx=id.indexOf('fx-')===0,start=id.indexOf('start-dsh')===0;" +
+        "b.addEventListener('touchstart',function(){long=false;t=setTimeout(function(){long=true;try{if(fx){AndroidShell.fixRun(sc);}else if(start){AndroidShell.launchTermuxStart();}else{AndroidShell.launchTermuxInstall(sc);}}catch(e){}},700);},{passive:true});" +
+        "b.addEventListener('touchend',function(){if(t){clearTimeout(t);t=null;}if(long){return;}try{if(fx){AndroidShell.fixCopy(sc);}else if(start){AndroidShell.copyStartCommand();}else{AndroidShell.copyInstallCommand(sc);}}catch(e){}b.textContent='Copied ✓';setTimeout(function(){b.textContent=orig;},1200);});" +
+        "b.addEventListener('touchmove',function(){if(t){clearTimeout(t);t=null;}});" +
+        "b.addEventListener('click',function(e){if(long){e.preventDefault();e.stopPropagation();long=false;}});" +
+        "})(L[i][0],L[i][1]);}" +
+        "}" +
+        "bindInst();" +
         "function doConnect(){" +
-        "var v=document.getElementById('host').value.trim();" +
-        "if(!v){v='127.0.0.1:3080';}" +
-        "else if(!/^[a-zA-Z0-9.\\-]+:\\d{1,5}$/.test(v)){v=v+':3080';}" +
+        "var i=document.getElementById('host');" +
+        "var v=i.value.trim();" +
+        "if(!v){v='127.0.0.1:3080';}" +            // 空 → 默认本机
+        "else if(/^\\d{1,5}$/.test(v)){v='127.0.0.1:'+v;}" +   // 纯端口: 3081 → 127.0.0.1:3081
+        "else if(/^:\\d{1,5}$/.test(v)){v='127.0.0.1'+v;}" +   // :3081 → 127.0.0.1:3081
+        "else if(!/^[a-zA-Z0-9.\\-]+:\\d{1,5}$/.test(v)){v=v+':3080';}" +  // 纯 host: 补 3080
+        "i.value=v;" +                              // 输入框回填补全后的地址
         "AndroidShell.connect(v);}" +
         "function renderHist(){" +
         "try{var l=JSON.parse(AndroidShell.getRemoteHistory()||'[]');" +
@@ -248,10 +284,18 @@ private static final String OFFLINE_HTML_EN =
             html = html.replace(
                 "<span id='dsh-notify-ok' style='display:none;color:#4caf50;margin-left:4px'>&#10003;</span>",
                 "<span id='dsh-notify-ok' style='color:#4caf50;margin-left:4px'>&#10003;</span>");
+            // 双仓库右侧的开启通知按钮: 已授权 → 变灰 + 内容追加 ✓
+            html = html.replace(
+                "<button id='dsh-notify-btn2' onclick=\"AndroidShell.requestNotifyPermission()\" " +
+                "style='padding:8px 16px;border-radius:8px;border:1px solid #e6e6ef;background:transparent;color:#e6e6ef;font-size:13px'>" +
+                (en ? "Enable Notify" : "开启通知") + "</button>",
+                "<button id='dsh-notify-btn2' disabled " +
+                "style='padding:8px 16px;border-radius:8px;border:1px solid #3a3a4a;background:transparent;color:#6a6a78;font-size:13px'>" +
+                (en ? "Enable Notify" : "开启通知") + "&#10003;</button>");
         }
         String fixRow = "<div style='display:flex;gap:6px;margin:0 0 12px;-webkit-touch-callout:none'>" +
             "<button id='fx-browser' " +
-            "style='flex:1;padding:8px 2px;border-radius:8px;border:1px solid #4dd0e1;background:transparent;color:#4dd0e1;font-size:12px;font-weight:600;-webkit-user-select:none;user-select:none;'>" +
+            "style='flex:1;padding:8px 2px;border-radius:8px;border:1px solid #6b8aff;background:transparent;color:#6b8aff;text-decoration:underline;font-size:12px;font-weight:600;-webkit-user-select:none;user-select:none;'>" +
             (en ? "Browser" : "浏览器原版") + "</button>" +
             "<button id='fx-repair' " +
             "style='flex:1;padding:8px 2px;border-radius:8px;border:1px solid #4dd0e1;background:transparent;color:#4dd0e1;font-size:12px;font-weight:600;-webkit-user-select:none;user-select:none;'>" +
@@ -261,7 +305,7 @@ private static final String OFFLINE_HTML_EN =
             (en ? "Reinstall" : "简易重装") + "</button>" +
             // 危险动作(清洁重装): 红字 + 下划线强调
             "<button id='fx-clean' " +
-            "style='flex:1;padding:8px 2px;border-radius:8px;border:1px solid #d95252;background:transparent;color:#ff8a8a;font-size:12px;font-weight:700;text-decoration:underline;-webkit-user-select:none;user-select:none;'>" +
+            "style='flex:1;padding:8px 2px;border-radius:8px;border:1px solid #4dd0e1;background:transparent;color:#4dd0e1;font-size:12px;font-weight:700;-webkit-user-select:none;user-select:none;'>" +
             (en ? "Clean" : "清洁重装") + "</button>" +
             "</div>";
         return html.replace("__FIX_ROW__", fixRow);
@@ -479,7 +523,21 @@ private static final String OFFLINE_HTML_EN =
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        Toast.makeText(getApplicationContext(), getString(R.string.toast_copied), Toast.LENGTH_SHORT).show();
+                        Toast.makeText(getApplicationContext(), cmd, Toast.LENGTH_LONG).show();
+                    }
+                });
+            }
+
+            // 复制 dsh-web 启动命令(点击=复制 + 气泡显示命令, 长按=launchTermuxStart 拉起执行)
+            @JavascriptInterface
+            public void copyStartCommand() {
+                final String cmd = "dsh-web";
+                ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+                cm.setPrimaryClip(ClipData.newPlainText("dsh start command", cmd));
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(getApplicationContext(), cmd, Toast.LENGTH_SHORT).show();
                     }
                 });
             }
@@ -641,14 +699,10 @@ private static final String OFFLINE_HTML_EN =
                 final String text = w.equals("browser") ? "http://127.0.0.1:3080" : fixCommand(w);
                 ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
                 cm.setPrimaryClip(ClipData.newPlainText("dsh fix command", text));
-                final int res = w.equals("browser") ? R.string.toast_fix_copied_browser
-                    : w.equals("repair") ? R.string.toast_fix_copied_repair
-                    : w.equals("simple") ? R.string.toast_fix_copied_simple
-                    : R.string.toast_fix_copied_clean;
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        Toast.makeText(getApplicationContext(), getString(res), Toast.LENGTH_SHORT).show();
+                        Toast.makeText(getApplicationContext(), text, Toast.LENGTH_LONG).show();
                     }
                 });
             }
