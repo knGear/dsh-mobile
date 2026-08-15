@@ -1,11 +1,12 @@
-# dsh-mobile 交接文档 (2026-08-15 快照)
+# dsh-mobile 交接文档 (2026-08-15 快照, 已接手同步)
 
 > 本文件由旧会话交接生成, 新会话先读本文件再动手。
+> 2026-08-15 新会话已接手: 全量同步 live → repo 并推送 (commit c5f20d2)。
 
 ## 项目三件套
 1. **APK 壳** `/sdcard/1tui/apk/dsh/` (com.dsh.mobile, 当前版本 0.37)
 2. **插件** 实际运行在 `~/.dsh/profiles/node_modules/{mobile-ui,mobile-AndroidNotify}/` (Termux 原生部署, dsh web 从磁盘实时加载 client.js, 改完刷新页面即生效; host 侧 index.js 需重启 dsh)
-3. **GitHub repo** `/sdcard/1tui/dsh-mobile/` (镜像, 落后于 live, 需要时手动同步; SSH 已配好, 推 master 分支)
+3. **GitHub repo** `/sdcard/1tui/dsh-mobile/` (镜像, 改动后手动同步推送; SSH 已配好, 推 main 分支)
 
 ## 当前页面模型(用户刚定稿)
 - **引导页**(壳内离线/初始合一页面, 用户曾叫"初始页/离线页", 现统一叫**引导页**)
@@ -25,11 +26,13 @@
 - **安装脚本**: dsh-install-termux.sh(原生, 编译坑多) / dsh-install-linux.sh(proot, 省心); 都会装插件+挂载 cordis.patch.yml
 
 ## 已知问题/待办
-1. **repo 落后**: 大量 live 改动未同步 repo (client.js/index.js/安装脚本/APK 源码), 新会话先 diff 同步
-2. **dsh-repair.sh / dsh-reinstall.sh 未推 GitHub**: 离线页四档一键执行依赖 raw.githubusercontent 拉脚本, 不推会 404
+1. ~~repo 落后~~ ✅ 2026-08-15 已全量同步并推送 (c5f20d2), raw 脚本全部 HTTP 200
+2. ~~dsh-repair.sh / dsh-reinstall.sh 未推~~ ✅ 已推送, 四档一键执行可用
 3. **浏览器纯净模式**: 插件 client.js ?plain=1 跳过注入
 4. **更新检查**: 用户提过"内置检查更新(检查 dsh 和 mobile 两个)", 未实现, 优先级低
 5. **proot 双实例/发行版**: 标题只显示 Termux-Linux(保守), 不做精确发行版(隐私考虑, 用户拍板)
+6. **APK 内置 install_backend.sh 是旧版**: MainActivity.copyInstallScript() 复制的仍是 6 步旧脚本, 落后于 scripts/dsh-install-termux.sh (9 步新版); 下次构建 APK 时应替换
+7. **脚本世代差异**: 新版 dsh-install-termux.sh 带 dsh-web-restart + instance.conf, 旧脚本无; 老设备升级路径未做
 
 ## 构建命令(proot debian)
 ```bash
