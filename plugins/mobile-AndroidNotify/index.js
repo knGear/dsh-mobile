@@ -537,6 +537,22 @@ function apply(ctx) {
     } catch (e) { /* 忽略 */ }
   })
 
+  // ── 心跳: 每 15s 广播一次(不显示通知, 壳离线页标题据此判断本机 dsh 是否在运行) ──
+  // instance 自报: Termux 原生无 /etc/os-release → termux; proot 读 os-release ID → termux-linux:debian
+  let heartbeatInstance = 'termux'
+  try {
+    const osr = readFileSync('/etc/os-release', 'utf8')
+    const m = /^ID=(.+)$/m.exec(osr)
+    if (m) heartbeatInstance = 'termux-linux:' + m[1].trim().replace(/^"|"$/g, '')
+  } catch (e) { /* Termux 原生无 os-release */ }
+  const HEARTBEAT_MS = 15000
+  const heartbeatTimer = setInterval(() => {
+    try { broadcast({ heartbeat: true, instance: heartbeatInstance }) } catch (e) { /* 忽略 */ }
+  }, HEARTBEAT_MS)
+  // 立即发一次(让壳快速知道状态), 并确保 timer 清理
+  try { broadcast({ heartbeat: true, instance: heartbeatInstance }) } catch (e) { /* 忽略 */ }
+  ctx.effect(() => () => { try { clearInterval(heartbeatTimer) } catch (e) { /* 忽略 */ } })
+
   // 每分钟刷新运行中会话的运行时间
   if (timer) {
     ctx.effect(() => timer.interval(() => {

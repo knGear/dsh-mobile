@@ -11,7 +11,7 @@
   },
   "dsh": {
     "client": {
-      "inject": ["slots", "layout"],
+      "inject": ["slots", "layout", "sessions"],
       "platform": "web",
       "immediately": true
     }

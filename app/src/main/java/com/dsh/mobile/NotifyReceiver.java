@@ -22,9 +22,14 @@ import org.json.JSONObject;
  *   ongoing: true       — 常驻不可关闭通知(静默渠道 dsh_status, 需配 id)
  *   id: <int>           — 固定通知 id(更新/注销用同一 id)
  *   cancel: true        — 注销 id 对应的常驻通知(仅发 id)
+ *   heartbeat: true     — 插件心跳(不显示通知, 仅刷新 lastHeartbeat; 离线页标题状态用)
  * 点击通知打开 MainActivity(带 url 跳转)。
  */
 public class NotifyReceiver extends BroadcastReceiver {
+    // 插件心跳(静态, MainActivity 离线页渲染时读取判断本机 dsh 是否在运行)
+    public static volatile long lastHeartbeat = 0;
+    public static volatile String heartbeatInstance = null;
+
     private static final String CHANNEL_ID = "dsh_notify_v2";
     private static final String CHANNEL_SILENT_ID = "dsh_notify_silent";
     private static final String CHANNEL_STATUS_ID = "dsh_status";
@@ -37,6 +42,7 @@ public class NotifyReceiver extends BroadcastReceiver {
         String url = null;
         boolean ongoing = false;
         boolean cancel = false;
+        boolean heartbeat = false;
         int id = -1;
         String channel = null;
 
@@ -44,6 +50,13 @@ public class NotifyReceiver extends BroadcastReceiver {
             String payload = intent.getStringExtra("payload");
             if (payload != null) {
                 JSONObject o = new JSONObject(new String(Base64.decode(payload, Base64.DEFAULT), "UTF-8"));
+                heartbeat = o.optBoolean("heartbeat", false);
+                if (heartbeat) {
+                    // 插件心跳: 不显示通知, 只刷新状态(离线页标题判断 dsh 是否在运行)
+                    lastHeartbeat = System.currentTimeMillis();
+                    heartbeatInstance = o.optString("instance", null);
+                    return;
+                }
                 if (o.has("title") && o.optString("title").length() > 0) title = o.optString("title");
                 body = o.optString("body", "");
                 if (o.has("url")) url = o.optString("url");

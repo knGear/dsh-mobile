@@ -1,10 +1,26 @@
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { spawn, spawnSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
 
 const name = 'mobile-ui'
 const inject = ['webServer', 'tools']
 
-const RESTART_SCRIPT = '/data/data/com.termux/files/usr/bin/dsh-web-restart'
+// dsh-web-restart 多路径探测: Termux 原生 / proot(Linux 脚本生成的 $PREFIX/bin) / 任意 PREFIX
+// 安装脚本(dsh-install-termux.sh / dsh-install-linux.sh)都会生成对应环境的 restart 脚本;
+// 运行时取第一个真实存在的, 保证三环境重启按钮都可用。
+function findRestartScript() {
+  const candidates = [
+    process.env.PREFIX ? `${process.env.PREFIX}/bin/dsh-web-restart` : '',
+    '/data/data/com.termux/files/usr/bin/dsh-web-restart',
+    '/usr/local/bin/dsh-web-restart',
+    '/usr/bin/dsh-web-restart',
+  ]
+  for (const p of candidates) {
+    if (p && existsSync(p)) return p
+  }
+  return null
+}
+const RESTART_SCRIPT = findRestartScript()
 const ORIGINAL_URL = 'http://127.0.0.1:3080/?plain=1'
 
 function apply(ctx) {
@@ -14,6 +30,11 @@ function apply(ctx) {
     path: '/api/dsh-restart',
     handler: (_req, res) => {
       try {
+        if (!RESTART_SCRIPT) {
+          res.writeHead(500, { 'content-type': 'application/json' })
+          res.end(JSON.stringify({ ok: false, message: '未找到 dsh-web-restart 脚本' }))
+          return
+        }
         const child = spawn('bash', [RESTART_SCRIPT], { detached: true, stdio: 'ignore' })
         child.unref()
         res.writeHead(200, { 'content-type': 'application/json' })

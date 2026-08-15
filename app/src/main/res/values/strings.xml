@@ -1,4 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">dsh-mobile</string>
+    <string name="toast_ip_port">格式应为 IP:端口</string>
+    <string name="toast_open_fail">无法打开链接</string>
+    <string name="toast_dl_fail">无法打开下载链接</string>
+    <string name="toast_copied">安装指令已复制，粘贴到 Termux 执行即可</string>
+    <string name="toast_no_termux">未安装 Termux，请先到 F-Droid 安装</string>
+    <string name="toast_launch_fail">拉起失败：请检查 Termux 设置里是否已允许外部应用执行命令</string>
+    <string name="toast_copy_fail">复制失败: %s</string>
+    <string name="toast_fix_copied_browser">浏览器原版地址已复制</string>
+    <string name="toast_fix_copied_repair">原版修复命令已复制</string>
+    <string name="toast_fix_copied_simple">简易重装命令已复制</string>
+    <string name="toast_fix_copied_clean">清洁重装命令已复制</string>
 </resources>

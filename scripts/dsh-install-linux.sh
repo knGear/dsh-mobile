@@ -124,6 +124,38 @@ EOF
 chmod +x "$PREFIX/bin/dsh-web"
 echo "$P 已生成启动命令: dsh-web"
 
+# dsh-web-restart: 重启 dsh web (由 mobile-ui 插件 /api/dsh-restart 调用, 侧栏长按重启)
+# proot 版: 进 ubuntu 杀 node web 进程 + 等端口释放 + 重新拉起。
+cat > "$PREFIX/bin/dsh-web-restart" <<'EOF'
+#!/data/data/com.termux/files/usr/bin/bash
+# dsh-web-restart (proot): 重启 dsh web — 由 mobile-ui 插件 /api/dsh-restart 调用
+sleep 1
+proot-distro login ubuntu -- bash -c '
+  PID=$(pgrep -f "^node .*lib/bin\.js web" | head -1)
+  if [ -n "$PID" ]; then
+    kill "$PID"
+    for _ in $(seq 1 30); do
+      kill -0 "$PID" 2>/dev/null || break
+      sleep 0.5
+    done
+  fi
+  sleep 1
+  mkdir -p "$HOME/.cache"
+  nohup node --expose-internals /usr/local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js web >> "$HOME/.cache/dsh-web.log" 2>&1 &
+'
+EOF
+chmod +x "$PREFIX/bin/dsh-web-restart"
+echo "$P 已生成重启命令: dsh-web-restart"
+
+# 本机实例探测(一次性, 写壳可读配置): 进 proot 读 os-release ID → termux-linux
+# (proot 内发行版不承诺具体名称, 壳只显示 Termux-Linux; 避免运行时探测)
+INSTANCE=termux-linux
+DISTRO_ID=$(proot-distro login ubuntu -- sh -c 'grep "^ID=" /etc/os-release 2>/dev/null | cut -d= -f2' 2>/dev/null | tr -d '"' | tr -d '\r' | head -1)
+[ -n "$DISTRO_ID" ] && INSTANCE="termux-linux:$DISTRO_ID"
+echo "instance=$INSTANCE" > /data/data/com.termux/files/usr/etc/dsh-instance.conf 2>/dev/null
+chmod 644 /data/data/com.termux/files/usr/etc/dsh-instance.conf 2>/dev/null || true
+echo "$P 已写入本机实例配置: $INSTANCE"
+
 # dsh wrapper (proot 内): npm 装的 bin.js 不带 --expose-internals,
 # 直接 `dsh web` 时解析不到 ~/.dsh 本地插件 → 替换成显式传参的 wrapper。
 # ⚠ npm 更新 @deepseek-ai/dsh 后 /usr/local/bin/dsh 会被 symlink 覆盖, 需重放。

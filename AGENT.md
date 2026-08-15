@@ -1,46 +1,60 @@
-# AGENT.md — dsh-mobile 开发地图（AI 与维护者第一入口）
+# dsh-mobile 交接文档 (2026-08-15 快照)
 
-改这个仓库前先读本文档 + `docs/` 相关主题。目标是让任何 AI/维护者**按文档改，不凭感觉**。
+> 本文件由旧会话交接生成, 新会话先读本文件再动手。
 
-## 这是什么
+## 项目三件套
+1. **APK 壳** `/sdcard/1tui/apk/dsh/` (com.dsh.mobile, 当前版本 0.37)
+2. **插件** 实际运行在 `~/.dsh/profiles/node_modules/{mobile-ui,mobile-AndroidNotify}/` (Termux 原生部署, dsh web 从磁盘实时加载 client.js, 改完刷新页面即生效; host 侧 index.js 需重启 dsh)
+3. **GitHub repo** `/sdcard/1tui/dsh-mobile/` (镜像, 落后于 live, 需要时手动同步; SSH 已配好, 推 master 分支)
 
-DeepSeek Harness（dsh）的 Android 移动前端，三部分：
-- `app/` — Android 壳（com.dsh.mobile）：WebView + 通知接收 + 安全区 + JS 桥
-- `plugins/mobile-ui/` — 移动 UI 插件（侧栏/设置/布局适配）
-- `plugins/mobile-AndroidNotify/` — 通知插件（状态机/工具/开关）
-- `scripts/` — 安装脚本（termux 原生 / proot ubuntu / 插件追加）
+## 当前页面模型(用户刚定稿)
+- **引导页**(壳内离线/初始合一页面, 用户曾叫"初始页/离线页", 现统一叫**引导页**)
+  - 触发: 连接失败/无缓存/手动入口(设置-移动端 → debug → 进入初始页, 壳 showOfflinePage('init'))
+  - 两种视角: `showOfflinePage()` 无参=正常引导页(标题按心跳/配置显示运行状态); `showOfflinePage('init')`=初始页预览(标题"初来乍到?", 强制初次视角)
+- 标题三态: 初来乍到?(init) / 本机 dsh 未运行 / 已运行于 Termux(-Linux)
+- 布局(自上而下): 标题 → 下载(Termux)并部署(按钮在第二行缩进) → 已安装?运行(dsh-web)即可连接 → 输入框+连接 → 历史chips(本机只显端口) → 遇到困难?四档 → 双仓库 → [开启通知]获取增强体验(可选)✓(移到底部, 授权后灰+✓) → 底部代码块(点击复制 allow-external-apps 命令)
+- 青色按钮(可长按执行): Termux(性能)/Termux-Ubuntu(兼容)/四档修复; 点击=复制+"已复制 ✓"就地反馈1.2s, 长按700ms=拉起Termux执行
+- 链接按钮(蓝+下划线): Termux下载/双仓库
+- 实心按钮(纯点击): 连接/开启通知/dsh-web青色边框
 
-## 铁律
+## 核心机制(已实现)
+- **心跳**: mobile-AndroidNotify/index.js 每15s broadcast {heartbeat:true, instance}; NotifyReceiver 静态字段 lastHeartbeat/heartbeatInstance; 壳离线页渲染读心跳判断运行状态
+- **实例配置**: 安装脚本写 /data/data/com.termux/files/usr/etc/dsh-instance.conf (instance=termux 或 termux-linux[:distro]); 壳读一次缓存 SharedPreferences
+- **重启**: mobile-ui/index.js /api/dsh-restart spawn bash dsh-web-restart(孤儿进程); dsh-web-restart 由安装脚本生成(termux/linux 各有)
+- **通知**: 渠道 dsh_notify_v2(有声)/dsh_notify_silent(静音)/dsh_status(常驻); payload base64 JSON 经 am broadcast 到 NotifyReceiver
+- **安装脚本**: dsh-install-termux.sh(原生, 编译坑多) / dsh-install-linux.sh(proot, 省心); 都会装插件+挂载 cordis.patch.yml
 
-1. **不 fork 上游 dsh**：所有改动只在壳注入 + 本地插件层；上游升级零冲突
-2. **只依赖稳定语义锚点**：`data-*` / `role=` / 事件名 / JS 桥——绝不依赖上游 hash 类名
-3. **Java 不用 lambda**（老 d8：`Unable to find method metafactory`）——匿名类
-4. **插件 package.json exports 必须完整**：`"."` `"./client"` `"./package.json"`，否则客户端模块静默不加载
-5. **插件 id 全树唯一**：`mobile-` 前缀防撞上游
-6. **client.js 实时生效**（改完刷新页面即可）；**index.js/壳要重启/重编译**
-7. **能放插件的绝不进壳**：壳保持薄（WebView/通知接收/安全区三件事）
+## 已知问题/待办
+1. **repo 落后**: 大量 live 改动未同步 repo (client.js/index.js/安装脚本/APK 源码), 新会话先 diff 同步
+2. **dsh-repair.sh / dsh-reinstall.sh 未推 GitHub**: 离线页四档一键执行依赖 raw.githubusercontent 拉脚本, 不推会 404
+3. **浏览器纯净模式**: 插件 client.js ?plain=1 跳过注入
+4. **更新检查**: 用户提过"内置检查更新(检查 dsh 和 mobile 两个)", 未实现, 优先级低
+5. **proot 双实例/发行版**: 标题只显示 Termux-Linux(保守), 不做精确发行版(隐私考虑, 用户拍板)
 
-## 修改路径速查
+## 构建命令(proot debian)
+```bash
+proot-distro login debian -- bash -c '
+SRC=/sdcard/1tui/apk/dsh/app/src/main; BUILD=/root/dsh-build
+SDK=/root/android-sdk; JAR=$SDK/platforms/android-34/android.jar
+D8=$SDK/cmdline-tools/cmdline-tools/bin/d8
+KS=/sdcard/1tui/apk/dsh/release.keystore
+OUT=/sdcard/1tui/apk/dsh/out
+rm -rf $BUILD; mkdir -p $BUILD/gen $BUILD/classes $OUT; cd $BUILD
+/root/aapt package -f -M $SRC/AndroidManifest.xml -S $SRC/res -J gen -I $JAR -F base.unsigned.apk
+javac -source 1.8 -target 1.8 -bootclasspath $JAR -d classes gen/R.java $(find $SRC/java -name "*.java") 2>/dev/null
+$D8 --lib $JAR --min-api 26 --output . classes/com/dsh/mobile/*.class
+zip -j base.unsigned.apk classes.dex
+zipalign -f 4 base.unsigned.apk base.aligned.apk
+apksigner sign --ks $KS --ks-pass pass:dshmobile123 --ks-key-alias dshmobile --out $OUT/DSH-v0.37.apk base.aligned.apk'
+# 安装: su -c "cp .../DSH-v0.37.apk /data/local/tmp/dsh37.apk && chmod 644 ... && pm install -r /data/local/tmp/dsh37.apk"
+```
 
-| 想改 | 文件 | 生效 |
-|---|---|---|
-| 移动 UI 布局/样式/设置项 | `plugins/mobile-ui/client.js` | 刷新页面 |
-| 通知文案/emoji/规则/开关 | `plugins/mobile-AndroidNotify/index.js` | 重启 dsh |
-| 通知渠道/音效、JS 桥、离线页 | `app/src/main/java/com/dsh/mobile/` | 重编译装 APK |
-| 安装脚本 | `scripts/*.sh` | 重跑 |
+## 版本历史
+- v0.37: 引导页重构(初来乍到?标题/七行布局/通知行移底/代码块复制/青色按钮就地反馈/dsh-web青色/心跳机制)
+- v0.36: 离线页按钮样式迭代(空心/实心/描边反复调整, 最终实心字无描边)
+- v0.35: 离线页四档自救阶梯+历史chips+句内按钮
 
-## 验证
-
-- JS：`node --check <file>`
-- Java：proot Debian 内 `bash build.sh`（工具链见 `docs/build-release.md`）
-- 通知 payload 协议见 `docs/plugin-mobile-androidnotify.md`；JS 桥清单见 `docs/shell.md`
-
-## 发布
-
-见 `docs/build-release.md`（双资产：版本名 + 固定名 `dsh-mobile.apk`）。
-
-## 待办（TODO）
-
-- **顶部元素修改**：会话头部整理——去掉 Session log 按钮、把 agent 预设 + 后台任务按钮移到"对话/轨迹"选项卡行（结构已诊断：slot 出口包一层 div，header 定位法见 docs/plugin-mobile-ui.md DOM 锚点表；之前因插件加载问题搁置，wrapper 修复后根因已除）
-- **底部元素修改**：状态行（x轮x步）两行化/去空格/左对齐——方案已设计（组 span 计数 + br 插入 + dataset 幂等标记），此前撤销，可重做
-- **右上角运行状态入口（对话 x/x）**：Session log 位置替换为"对话 运行中/完成"按钮，点开展开面板（运行中置顶点击跳转不注销；完成项 ×仅注销 / 点本体注销+跳转）；完成横幅在状态区弹出。host 基础设施已就绪（`/api/dsh-session-status` GET 快照 / POST ?removeDone= + `dsh-notify/sessions` 事件 + runningSessions/doneSessions 集合），client UI 已撤销待重做。教训：client 改动页面必须刷新才可见；dsh-web-restart 杀进程逻辑不可靠（旧进程占端口致"假重启"），彻底重启需"杀光所有 + 等端口释放"
+## 插件文件清单
+- mobile-ui: client.js(UI/布局/重启按钮/活动任务管理器/横幅) index.js(重启API/原版webui/restart工具)
+- mobile-AndroidNotify: index.js(通知/心跳/会话状态API) client.js(?session=跳转)
+- 修改 client.js 只需刷新浏览器; 修改 index.js 需重启 dsh (bash dsh-web-restart)

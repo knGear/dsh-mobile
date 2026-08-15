@@ -151,6 +151,37 @@ command -v termux-open-url >/dev/null && termux-open-url "\$URL"
 EOF
 chmod +x "$PREFIX/bin/dsh-web"
 
+# dsh-web-restart: 重启 dsh web (由 mobile-ui 插件 /api/dsh-restart 调用, 侧栏长按重启)
+# 脱钩后台执行: sleep 1 让当前 HTTP 响应先返回, 再杀旧进程起新进程。
+# 用 ^node 锚点 + 等端口释放, 修复 pgrep -f 自匹配导致的 EADDRINUSE。
+cat > "$PREFIX/bin/dsh-web-restart" <<EOF
+#!/data/data/com.termux/files/usr/bin/bash
+# dsh-web-restart: 重启 dsh web (由 mobile-ui 插件 /api/dsh-restart 调用)
+BIN=$PREFIX/lib/node_modules/@deepseek-ai/dsh/lib/bin.js
+LOG="\\$HOME/.cache/dsh-web.log"
+sleep 1
+PID=\\$(pgrep -f "^node .*lib/bin\\.js web" | head -1)
+if [ -n "\\$PID" ]; then
+  kill "\\$PID"
+  for _ in \\$(seq 1 30); do
+    kill -0 "\\$PID" 2>/dev/null || break
+    sleep 0.5
+  done
+fi
+sleep 1
+mkdir -p "\\$HOME/.cache"
+nohup node --expose-internals "\\$BIN" web >> "\\$LOG" 2>&1 &
+EOF
+chmod +x "$PREFIX/bin/dsh-web-restart"
+echo "$P 已生成重启命令: dsh-web-restart"
+
+# 本机实例探测(一次性, 写壳可读配置): Termux 原生无 /etc/os-release → instance=termux
+# proot 场景由 dsh-install-linux.sh 负责写 termux-linux; 此处只写原生
+echo "instance=termux" > "$PREFIX/../usr/etc/dsh-instance.conf" 2>/dev/null \
+  || echo "instance=termux" > /data/data/com.termux/files/usr/etc/dsh-instance.conf
+chmod 644 /data/data/com.termux/files/usr/etc/dsh-instance.conf 2>/dev/null || true
+echo "$P 已写入本机实例配置: instance=termux"
+
 # ---------- 7. 验证 ----------
 echo "$P 7/9 验证原生模块..."
 for m in node-pty koffi sharp; do

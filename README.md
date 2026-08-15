@@ -1,33 +1,47 @@
 # dsh-mobile
 
-DeepSeek Harness **dsh web** 的 Android 移动前端：WebView 壳 APK + 本地 Cordis 插件，把 dsh 变成手机上的 App 体验。
+**非侵入 · 轻量 · 灵活**的移动适配 —— DeepSeek Harness（dsh web）的 Android 移动前端。
 
-dsh（DeepSeek Harness）是 DeepSeek 官方的 AI 编码/任务框架。本项目**不 fork 上游**：所有移动端改动通过壳注入与本地插件实现，上游升级不冲突。
+dsh 是 DeepSeek 官方的 AI 编码/任务框架，Web UI 运行在 `http://127.0.0.1:3080`。
+本项目**零 fork**：不修改 dsh 本体，通过**薄壳 + 本地插件**为它适配移动端体验，
+上游升级零冲突。**灵活**：插件实时加载——改 UI 刷新即所见即所得、改逻辑重启即生效，
+随时二次开发，绝大部分改动无需重新编译 APK。
 
-> **与 DeepSeek 官方无关**：本项目是独立开源项目，非 DeepSeek 出品、未经其认可或赞助；"DeepSeek" 及相关商标归其各自所有者所有。
+> **与 DeepSeek 官方无关**：本项目是独立开源项目，非 DeepSeek 出品、未经其认可或赞助；
+> "DeepSeek" 及相关商标归其各自所有者所有。
 
-## 特性
+## 核心设计
 
-**壳（APK）**
-- 深色一体化：状态栏/手势条与页面同色，edge-to-edge 全面屏
-- 原生 insets 安全区：内容自动避开状态栏/挖孔/手势条，上下偏移可调（-10~10 dp）
-- 离线自动重试 + 内置离线页（IP:端口 远程连接 + 复制一键安装脚本）
-
-**通知（本地插件）**
-- 会话进行中/完成/提问/故障状态推送，标题 = 会话标题-状态
-- 正文 = 运行时间 + 待办；可开启「通知内容强化」（AI 生成动作摘要，增加 token 消耗）
-- 错误码原文展示
-
-**移动 UI（本地插件）**
-- 对话栏竖屏适配、agent 预设卡片自适应
-- 移动端设置选项卡：连接地址 / 通知强化 / 全面屏优化（开关+偏移）/ 重启 dsh / 安全模式
-- 纯净模式：一键禁用全部移动端改动，回到原版 UI
+| 原则 | 做法 | 收益 |
+|---|---|---|
+| **非侵入** | 不 fork、不改上游；只依赖稳定语义锚点（`data-*` / `role=` / 事件名 / 官方接口） | 上游升级零冲突，永久可跟进 |
+| **轻量** | 薄壳只管平台能力（WebView / 通知 / 安全区），UI 全在本地插件 | 改 UI 不重建 APK，插件即插即用 |
+| **适配** | 移动端体验层：全面屏安全区 / 侧栏抽屉 / 通知状态机 / 移动设置 | 手机成为 dsh 的一等客户端 |
+| **灵活** | 插件实时加载：client 改动刷新即见、host 改动重启即生效；仅壳层需重编译 | 随时二次开发，所见即所得 |
 
 ## 界面预览
 
 | 对话 | 移动设置 | 排版优化 |
 | --- | --- | --- |
 | ![自我介绍](docs/screenshots/自我介绍.png) | ![移动设置](docs/screenshots/移动设置.png) | ![排版优化](docs/screenshots/排版优化.png) |
+
+## 特性
+
+**壳（APK）**
+- 深色一体化：状态栏/手势条与页面同色，edge-to-edge 全面屏
+- 原生 insets 安全区：内容自动避开状态栏/挖孔/手势条/输入法键盘，上下偏移可调
+- 离线自动重试 + 内置离线页（远程连接 / 连接历史 / Termux 直链 / 一键启动 / 一键安装）
+- 界面语言自动跟随系统（中/英）
+
+**通知（本地插件）**
+- 会话运行常驻通知（不可滑关）+ 完成/提问/截断/故障横幅，一会话一通知
+- 手动暂停静默退出；点按通知跳转对应会话；重启无残留
+- 声音/震动开关、AI 动作摘要（可选，额外消耗）
+
+**移动 UI（本地插件）**
+- 对话栏移动端适配（竖屏不溢出、统计条自适应转行、头部紧凑排布）
+- 活动计数按钮（运行中/已完成未读，面板展开跳转）
+- 移动端设置：连接地址 / 通知 / 全面屏 / 重启 / 安全模式（一键回原版）
 
 ## 安装
 
@@ -112,16 +126,30 @@ cd dsh-mobile && bash build.sh
 
 ```
 app/                      # Android 壳 (com.dsh.mobile, minSdk 26 / target 34)
-  src/main/java/          #   MainActivity(安全区/离线重试/JS桥) + NotifyReceiver(通知)
-  src/main/res/           #   图标/主题/一键安装脚本
+  src/main/java/          #   MainActivity(安全区/IME/离线页/JS桥) + NotifyReceiver(通知渠道)
+  src/main/res/           #   图标/主题/多语言 strings
 build.sh                  # 构建脚本(proot Debian 混合构建)
 release.keystore          # 发布签名(alias dshmobile, 密码随仓库公开——FOSS 实践)
 icon-master.svg           # 图标源
 plugins/
   cordis.patch.yml        # 插件挂载示例
-  mobile-ui/              # 移动 UI 插件(设置/重启)
-  mobile-AndroidNotify/   # 通知插件(状态推送/内容强化)
+  mobile-ui/              # 移动 UI 插件(布局注入/设置/活动计数)
+  mobile-AndroidNotify/   # 通知插件(状态机/开关/工具)
+scripts/
+  dsh-install-termux.sh   # Termux 原生一键安装(含插件)
+  dsh-install-linux.sh    # Termux 内 Ubuntu 一键安装(含插件)
+  dsh-addone-mobile.sh    # 已有 dsh 追加插件(bash 版)
+  dsh-addone-mobile.mjs   # 已有 dsh 追加插件(Node 跨平台版)
+PROMPT.md                 # 项目总提示词(需求规格, 可作跑分题)
+AGENT.md                  # AI 开发地图(铁律/修改路径/待办)
+docs/                     # 架构/壳/双插件/自定义/构建发布指南
 ```
+
+## 文档体系（AI 与维护者）
+
+- `PROMPT.md` —— 需求规格（跑分题：功能/约束/验收，无实现线索）
+- `AGENT.md` —— 开发地图（铁律/修改路径/待办/教训）
+- `docs/` —— 架构总览、壳指南、双插件指南、自定义速查、构建发布
 
 ## 插件挂载
 
@@ -140,12 +168,12 @@ plugins/
 
 - dsh：`@deepseek-ai/dsh@0.1.0-rc.6`（npm）
 - Android：minSdk 26 / target 34（Android 8.0+）
-- 布局锚点只用 dsh 稳定语义属性（`data-*` / `role=`），不依赖 hash 类名，上游升级不碎
+- 界面语言：自动跟随系统（中/英，与官方一致，无切换按钮）
 - **无 root 可用**：安装/通知/远程连接均不依赖 root（仅旧版设备的 SELinux 补丁为可选步骤，失败自动跳过）
 
 ## 版本历史
 
-- **v0.01** — 首个公开版
+- **v0.01** — 首个公开版（本地 0.17 迭代重编号）
 
 ## Credits
 
