@@ -30,18 +30,22 @@ function apply(ctx) {
     },
   })
 
-  // 当前 dsh 版本(读已装 package.json); dshm 版本由客户端从 UA 解析
+  // 当前版本: dsh(读已装 package.json) + dshmUi(本插件自身 package.json) + dshmShell(壳, 由 UA 经 query 传入)
   ctx.webServer.register({
     kind: 'exact',
     path: '/api/dshm-versions',
-    handler: (_req, res) => {
+    handler: (req, res) => {
       try {
+        const u = new URL(req.url, 'http://x')
         const pkg = require('@deepseek-ai/dsh/package.json')
+        let uiVer = '?'
+        try { uiVer = require('./package.json').version || '?' } catch (e) { uiVer = '?' }
+        const shellVer = u.searchParams.get('shell') || '?'
         res.writeHead(200, { 'content-type': 'application/json' })
-        res.end(JSON.stringify({ dsh: pkg.version || '?' }))
+        res.end(JSON.stringify({ dsh: pkg.version || '?', dshmUi: uiVer, dshmShell: shellVer }))
       } catch (error) {
         res.writeHead(500, { 'content-type': 'application/json' })
-        res.end(JSON.stringify({ dsh: '?', message: String(error) }))
+        res.end(JSON.stringify({ dsh: '?', dshmUi: '?', dshmShell: '?', message: String(error) }))
       }
     },
   })

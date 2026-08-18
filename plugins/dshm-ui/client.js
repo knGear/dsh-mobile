@@ -43,52 +43,61 @@ window.__ModuleLoader__.load({
         .replace(/"/g, '&quot;')
     }
 
-    // 版本检查: mount 时拉取(当前 dsh 走 /api/dshm-versions, dshm 从 UA 解析;
-    // 远程 dsh 走 npm registry, dshm 走 GitHub ver 文件)
+    // 版本检查: 三条目 — dsh(官方) / dshm-ui(插件) / dsh-mobile(壳)
+    // 当前版本: 走 /api/dshm-versions(dsh + 插件, 壳从 UA 传入)
+    // 远程版本: dsh 走 npm registry; dshm-ui 走 dshm-ver; dsh-mobile 走 dsh-mobile-ver
     function VersionCheck() {
       var React = require('react')
-      var st = React.useState({ dshCur: '?', dshmCur: '?', dshRem: '?', dshmRem: '?', ts: '' })
+      var st = React.useState({ dshCur: '?', dshmUiCur: '?', dshmShellCur: '?', dshRem: '?', dshmUiRem: '?', dshmShellRem: '?', ts: '' })
       var v = st[0]; var setV = st[1]
       React.useEffect(function () {
-        fetch('/api/dshm-versions').then(function (r) { return r.json() }).then(function (j) {
-          setV(function (o) { return Object.assign({}, o, { dshCur: j.dsh || '?', ts: now() }) })
-        }).catch(function () {})
         var m = /DSHM\/([\d.]+)/.exec(navigator.userAgent)
-        if (m) setV(function (o) { return Object.assign({}, o, { dshmCur: m[1], ts: now() }) })
+        var shell = m ? m[1] : ''
+        fetch('/api/dshm-versions?shell=' + encodeURIComponent(shell)).then(function (r) { return r.json() }).then(function (j) {
+          setV(function (o) { return Object.assign({}, o, {
+            dshCur: j.dsh || '?', dshmUiCur: j.dshmUi || '?', dshmShellCur: j.dshmShell || '?', ts: now(),
+          }) })
+        }).catch(function () {})
         fetch('https://registry.npmjs.org/@deepseek-ai/dsh/latest').then(function (r) { return r.json() }).then(function (j) {
           setV(function (o) { return Object.assign({}, o, { dshRem: j.version || '?', ts: now() }) })
         }).catch(function () { setV(function (o) { return Object.assign({}, o, { dshRem: '?', ts: now() }) }) })
         fetch('https://raw.githubusercontent.com/knGear/dsh-mobile/main/dshm-ver').then(function (r) {
           return r.text()
         }).then(function (t) {
-          setV(function (o) { return Object.assign({}, o, { dshmRem: (t || '?').trim(), ts: now() }) })
-        }).catch(function () { setV(function (o) { return Object.assign({}, o, { dshmRem: '?', ts: now() }) }) })
+          setV(function (o) { return Object.assign({}, o, { dshmUiRem: (t || '?').trim(), ts: now() }) })
+        }).catch(function () { setV(function (o) { return Object.assign({}, o, { dshmUiRem: '?', ts: now() }) }) })
+        fetch('https://raw.githubusercontent.com/knGear/dsh-mobile/main/dsh-mobile-ver').then(function (r) {
+          return r.text()
+        }).then(function (t) {
+          setV(function (o) { return Object.assign({}, o, { dshmShellRem: (t || '?').trim(), ts: now() }) })
+        }).catch(function () { setV(function (o) { return Object.assign({}, o, { dshmShellRem: '?', ts: now() }) }) })
       }, [])
       var same = function (cur, rem) { return cur !== '?' && rem !== '?' && cur === rem }
       var btn = function (label, cur, rem, kind) {
         var eq = same(cur, rem)
         var known = cur !== '?' && rem !== '?'
-        return React.createElement('div', { style: { flex: 1, textAlign: 'center' } },
-          React.createElement('div', { style: { fontSize: 12, opacity: .5, marginBottom: 4 } }, label),
+        return React.createElement('div', { style: { flex: 1, textAlign: 'center', minWidth: 0 } },
+          React.createElement('div', { style: { fontSize: 12, opacity: .5, marginBottom: 4, whiteSpace: 'nowrap' } }, label),
           React.createElement('button', {
             type: 'button',
             disabled: eq || !known,
             style: Object.assign({}, btnStyle(!eq && known), {
               width: '100%', fontWeight: eq ? 400 : 600,
-              opacity: eq ? .4 : 1,
+              opacity: eq ? .4 : 1, padding: '4px 2px', fontSize: 13,
             }),
             onClick: function () {
               if (kind === 'dsh') go('dshm://first')
               else window.open('https://github.com/knGear/dsh-mobile/releases', '_blank')
             },
           }, rem),
-          React.createElement('div', { style: { fontSize: 11, opacity: .4, marginTop: 4 } }, cur),
+          React.createElement('div', { style: { fontSize: 11, opacity: .4, marginTop: 4 } }, '当前 ' + cur),
         )
       }
       return React.createElement('div', null,
-        React.createElement('div', { style: { display: 'flex', gap: 10, marginTop: 10 } },
+        React.createElement('div', { style: { display: 'flex', gap: 8, marginTop: 10 } },
           btn('dsh', v.dshCur, v.dshRem, 'dsh'),
-          btn('dshm', v.dshmCur, v.dshmRem, 'dshm'),
+          btn('dshm-ui 插件', v.dshmUiCur, v.dshmUiRem, 'dshm'),
+          btn('dsh-mobile 壳', v.dshmShellCur, v.dshmShellRem, 'dshm'),
         ),
         React.createElement('div', { style: { fontSize: 11, opacity: .4, marginTop: 6, textAlign: 'right' } }, v.ts),
       )
