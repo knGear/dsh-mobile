@@ -32,6 +32,8 @@
     color: #4dd0e1; font-weight: 600;
   }
   .cy:active { background: rgba(77, 208, 225, .12); }
+  /* 点击复制按钮(开启 Termux 一键权限那条): 加下划线, 与其他青色按钮区分 */
+  .cy.u { text-decoration: underline; }
   /* 蓝色下划线链接按钮: 点击=浏览器打开, 无长按 */
   .ln {
     border-radius: 3px; border: 1px solid #6b8aff;
@@ -156,7 +158,6 @@
   <div class="repos">
     <button class="ln" onclick="openUrl('https://github.com/knGear/dsh-mobile')" data-i="repo1">dsh-mobile 仓库</button>
     <button class="ln" onclick="openUrl('https://github.com/deepseek-ai/deepseek-harness')" data-i="repo2">dsh 仓库</button>
-    <button id="notify-btn" class="wh" onclick="askNotify()" data-i="notify">开启通知</button>
   </div>
 
   <div id="compare" onclick="if(event.target===this)hideCompare()">
@@ -178,7 +179,7 @@
     </div>
   </div>
 
-  <p class="hint"><button class="cy" onclick="copyAllow(this)" data-i="cap">点击复制</button><span data-i="hint">命令到 Termux 运行，即可长按青色按钮一键运行</span></p>
+  <p class="hint"><button class="cy u" onclick="copyAllow(this)" data-i="cap">点击复制</button><span data-i="hint">命令到 Termux 运行，即可长按青色按钮一键运行</span></p>
 
 </div>
 
@@ -193,7 +194,7 @@ var D = {
     l3a: '已安装？在 termux 运行', l3b: '或连接到', l4: '长按一键运行需先开启',
     trouble: '遇到故障？', fx1: '浏览器原版', fx2: '原版验证安装', fx3: '简易重装', fx4: '清洁重装',
     connect: '连接', repo1: 'dsh-mobile 仓库', repo2: 'dsh 仓库',
-    notify: '开启通知', hist: '历史连接', hint: '命令到 Termux 运行，即可长按青色按钮一键运行',
+    hist: '历史连接', hint: '命令到 Termux 运行，即可长按青色按钮一键运行',
     cap: '点击复制', copied: '已复制 ✓'
   },
   en: {
@@ -202,7 +203,7 @@ var D = {
     l3a: 'Already installed? Run', l3b: 'in Termux, or connect to', l4: 'Enable first for one-tap run:',
     trouble: 'Fault?', fx1: 'Original in browser', fx2: 'Verify-install (pristine)', fx3: 'Quick reinstall', fx4: 'Clean reinstall',
     connect: 'Connect', repo1: 'dsh-mobile repo', repo2: 'dsh repo',
-    notify: 'Enable notifications', hint: ' the command and run it in Termux to enable long-press one-tap run',
+    hint: ' the command and run it in Termux to enable long-press one-tap run',
     cap: 'Tap to copy', copied: 'Copied ✓'
   }
 };
@@ -246,7 +247,6 @@ function openInBrowser(u) { try { AndroidShell.openInBrowser(u); } catch (e) {} 
 function showCompare() { document.getElementById('compare').classList.add('show') }
 function hideCompare() { document.getElementById('compare').classList.remove('show') }
 function dlTermux() { try { AndroidShell.openTermuxDownload(); } catch (e) {} }
-function askNotify() { try { AndroidShell.requestNotifyPermission(); } catch (e) {} }
 
 // 输入规范化: 空=默认 / 纯端口 / :端口 / 纯host补3080 / 带端口原样; 回填后连接
 function doConnect() {
@@ -307,23 +307,6 @@ function bindPress(el, id) {
 }
 var cys = document.querySelectorAll('.cy');
 for (var k = 0; k < cys.length; k++) bindPress(cys[k], cys[k].getAttribute('data-cmd'));
-
-
-// ── 通知按钮态(进入时 + 切回前台时刷新) ──────────────────
-function refreshNotify() {
-  var granted = false;
-  try { granted = JSON.parse(AndroidShell.getStatus()).notify === 1; } catch (e) {}
-  var b = document.getElementById('notify-btn');
-  if (granted) {
-    b.disabled = true; b.classList.add('granted');
-    b.textContent = T.notify + ' \u2713';
-  } else {
-    b.disabled = false; b.classList.remove('granted');
-    b.textContent = T.notify;
-  }
-}
-window.__refresh = refreshNotify;
-refreshNotify();
 </script>
 </body>
 </html>

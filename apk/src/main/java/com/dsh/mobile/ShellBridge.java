@@ -20,7 +20,7 @@ import java.net.URL;
  * JS 桥(初始页 ⇄ 壳) — 只提供平台动作原语, 页面逻辑全在 first.html。
  * 命令白名单单一真源在壳侧 COMMANDS: 页面传 cmdId, 文本经 getCommand 取 — 改命令只改一处。
  * 交互: 蓝下划线→openUrl/openTermuxDownload(浏览器); 青色按钮/代码块→点击 copyText(气泡全文),
- *       长按 runInTermux(cmdId); 通知按钮→requestNotifyPermission, 态经 getStatus 查询。
+ *       长按 runInTermux(cmdId)。
  */
 class ShellBridge {
 
@@ -114,12 +114,11 @@ class ShellBridge {
         return s == null ? "" : s.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
-    // 页面状态: 语言 / 通知授权 / 页面种类(init|offline|guide, 宿主定) / 连接历史(宿主定)
+    // 页面状态: 语言 / 页面种类(init|offline|guide, 宿主定) / 连接历史(宿主定)
     @JavascriptInterface
     public String getStatus() {
         boolean en = java.util.Locale.getDefault().getLanguage().startsWith("en");
         return "{\"lang\":\"" + (en ? "en" : "zh") + "\""
-            + ",\"notify\":" + (notifyGranted() ? 1 : 0)
             + ",\"titleKey\":\"" + hostC.titleKey() + "\""
             + ",\"hist\":" + hostC.histJson() + "}";
     }
@@ -364,35 +363,7 @@ class ShellBridge {
         });
     }
 
-    @JavascriptInterface
-    public String hasNotifyPermission() {
-        return notifyGranted() ? "1" : "0";
-    }
 
-    @JavascriptInterface
-    public void requestNotifyPermission() {
-        act.runOnUiThread(new Runnable() {
-            @Override public void run() {
-                try {
-                    Intent i = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
-                    i.putExtra(Settings.EXTRA_APP_PACKAGE, act.getPackageName());
-                    act.startActivity(i);
-                } catch (Exception e) { /* 忽略 */ }
-            }
-        });
-    }
-
-    private boolean notifyGranted() {
-        try {
-            if (Build.VERSION.SDK_INT >= 33) {
-                return act.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
-                    == PackageManager.PERMISSION_GRANTED;
-            }
-            return true;
-        } catch (Exception e) {
-            return false;
-        }
-    }
 
     // Termux RUN_COMMAND 解析(加固版):
     // ① queryIntentServices 按 action 找全部响应者(改名 fork 也兼容), 优先官方 com.termux;
