@@ -1,4 +1,4 @@
-package com.dshm;
+package com.dsh.mobile;
 
 import android.app.Activity;
 import android.Manifest;
@@ -60,7 +60,10 @@ public class MainActivity extends Activity implements ShellBridge.Connector {
         s.setDomStorageEnabled(true);
         s.setLoadWithOverviewMode(true);
         s.setUseWideViewPort(true);
-        s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        // setMixedContentMode 是 API 21+(Android 5.0): Android 4.x 无此方法, 且 4.x 默认允许混合内容
+        if (Build.VERSION.SDK_INT >= 21) {
+            s.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+        }
         s.setCacheMode(WebSettings.LOAD_NO_CACHE);
         // UA 标识: dshm-ui 插件据此识别本壳(注入移动 UI); 旧 mobile-ui 反向检测(互不干扰)
         try {

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">dshm</string>
+    <string name="app_name">dsh-mobile</string>
     <string name="toast_ip_port">Expected format: IP:port</string>
     <string name="toast_open_fail">Cannot open link</string>
     <string name="toast_dl_fail">Cannot open download link</string>

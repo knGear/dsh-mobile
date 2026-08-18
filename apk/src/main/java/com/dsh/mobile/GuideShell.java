@@ -1,4 +1,4 @@
-package com.dshm;
+package com.dsh.mobile;
 
 import android.webkit.JavascriptInterface;
 

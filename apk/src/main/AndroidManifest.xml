@@ -1,16 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.dshm"
-    android:versionCode="38"
-    android:versionName="0.038">
+    package="com.dsh.mobile"
+    android:versionCode="52"
+    android:versionName="0.052">
 
-    <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="34" />
+    <uses-sdk android:minSdkVersion="17" android:targetSdkVersion="34" />
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="com.termux.permission.RUN_COMMAND" />
+    <!-- App 内更新: 安装未知应用(Android 8+ 需用户授权"安装此来源") -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:allowBackup="false"
@@ -56,6 +58,13 @@
                 <data android:scheme="dshm" android:host="guide" />
             </intent-filter>
         </activity>
+
+        <!-- App 内更新: 暴露下载的 APK 给系统安装器(content:// URI, 无 androidx FileProvider 替代) -->
+        <provider
+            android:name=".ApkProvider"
+            android:authorities="com.dsh.mobile.files"
+            android:exported="false"
+            android:grantUriPermissions="true" />
 
     </application>
     <!-- Android 11+ 包可见性: 使 Termux(含改名 fork)对 resolveService 可见 -->

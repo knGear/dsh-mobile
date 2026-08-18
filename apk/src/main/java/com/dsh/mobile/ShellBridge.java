@@ -1,4 +1,4 @@
-package com.dshm;
+package com.dsh.mobile;
 
 import android.content.ClipData;
 import android.graphics.Color;
@@ -251,6 +251,83 @@ class ShellBridge {
         }).start();
     }
 
+    // App 内更新: 下载 APK 到应用专属目录(无需存储权限) → content:// 拉起安装管理器
+    // 逻辑: 后台下载 → REQUEST_INSTALL_PACKAGES 授权检查 → ApkProvider 暴露 → ACTION_VIEW 安装
+    @JavascriptInterface
+    public void updateApp(final String url) {
+        new Thread(new Runnable() {
+            @Override public void run() {
+                try {
+                    final java.io.File dir = act.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS);
+                    if (dir == null) {
+                        act.runOnUiThread(new Runnable() {
+                            @Override public void run() {
+                                Toast.makeText(act, "无法获取下载目录", Toast.LENGTH_SHORT).show();
+                            }
+                        });
+                        return;
+                    }
+                    if (!dir.exists()) dir.mkdirs();
+                    final java.io.File apk = new java.io.File(dir, "dsh-mobile.apk");
+                    // 下载
+                    HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+                    conn.setConnectTimeout(10000);
+                    conn.setReadTimeout(15000);
+                    conn.setInstanceFollowRedirects(true);
+                    InputStream in = conn.getInputStream();
+                    java.io.FileOutputStream fos = new java.io.FileOutputStream(apk);
+                    byte[] buf = new byte[8192];
+                    int n;
+                    while ((n = in.read(buf)) > 0) fos.write(buf, 0, n);
+                    fos.close();
+                    in.close();
+                    conn.disconnect();
+                    // Android 8+ 安装来源授权检查
+                    if (android.os.Build.VERSION.SDK_INT >= 26
+                            && !act.getPackageManager().canRequestPackageInstalls()) {
+                        act.runOnUiThread(new Runnable() {
+                            @Override public void run() {
+                                try {
+                                    Intent it = new Intent(
+                                        android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                        Uri.parse("package:" + act.getPackageName()));
+                                    it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                    act.startActivity(it);
+                                    Toast.makeText(act, "请允许安装未知应用，再点击一次更新", Toast.LENGTH_LONG).show();
+                                } catch (Exception e) {
+                                    Toast.makeText(act, "无法打开安装设置", Toast.LENGTH_SHORT).show();
+                                }
+                            }
+                        });
+                        return;
+                    }
+                    // content:// URI 拉起安装管理器
+                    final Uri uri = Uri.parse("content://com.dsh.mobile.files/apk");
+                    act.runOnUiThread(new Runnable() {
+                        @Override public void run() {
+                            try {
+                                Intent it = new Intent(Intent.ACTION_VIEW);
+                                it.setDataAndType(uri, "application/vnd.android.package-archive");
+                                it.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                                it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                                act.startActivity(it);
+                            } catch (Exception e) {
+                                Toast.makeText(act, "无法拉起安装管理器", Toast.LENGTH_SHORT).show();
+                            }
+                        }
+                    });
+                } catch (Exception e) {
+                    final String err = e.getMessage() == null ? "下载失败" : e.getMessage();
+                    act.runOnUiThread(new Runnable() {
+                        @Override public void run() {
+                            Toast.makeText(act, err, Toast.LENGTH_SHORT).show();
+                        }
+                    });
+                }
+            }
+        }).start();
+    }
+
     // 复制: Toast 气泡显示全文(页面同时就地"已复制 ✓")
     @JavascriptInterface
     public boolean copyText(String text) {
@@ -349,6 +426,9 @@ class ShellBridge {
     }
 
     private boolean ensureTermuxRunCommandPermission() {
+        // Android 5(<API 23) 无运行时权限: checkSelfPermission/requestPermissions 是 API 23+ 方法,
+        // 直接调用会 NoSuchMethodError; 低版本权限安装时已授予, 直接放行
+        if (Build.VERSION.SDK_INT < 23) return true;
         if (act.checkSelfPermission("com.termux.permission.RUN_COMMAND")
                 == PackageManager.PERMISSION_GRANTED) {
             return true;

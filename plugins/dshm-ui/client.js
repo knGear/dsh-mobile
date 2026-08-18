@@ -86,8 +86,14 @@ window.__ModuleLoader__.load({
               opacity: eq ? .4 : 1, padding: '4px 2px', fontSize: 13,
             }),
             onClick: function () {
-              if (kind === 'dsh') go('dshm://first')
-              else window.open('https://github.com/knGear/dsh-mobile/releases', '_blank')
+              // dsh-mobile 更新: App 内下载到专属目录后拉起安装管理器; Web 直接下载
+              if (kind === 'dsh') { go('dshm://first'); return }
+              var apkUrl = 'https://raw.githubusercontent.com/knGear/dsh-mobile/main/releases/dsh-mobile-v' + rem + '.apk'
+              if (IS_DSHM) {
+                try { AndroidShell.updateApp(apkUrl) } catch (e) { window.open(apkUrl, '_blank') }
+              } else {
+                window.open(apkUrl, '_blank')
+              }
             },
           }, rem),
           React.createElement('div', { style: { fontSize: 11, opacity: .4, marginTop: 4 } }, '当前 ' + cur),

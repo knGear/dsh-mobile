@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">dshm</string>
+    <string name="app_name">dsh-mobile</string>
     <string name="toast_ip_port">格式应为 IP:端口</string>
     <string name="toast_open_fail">无法打开链接</string>
     <string name="toast_dl_fail">无法打开下载链接</string>
