@@ -73,9 +73,13 @@ window.__ModuleLoader__.load({
         }).catch(function () { setV(function (o) { return Object.assign({}, o, { dshmShellRem: '?', ts: now() }) }) })
       }, [])
       var same = function (cur, rem) { return cur !== '?' && rem !== '?' && cur === rem }
+      // 就地反馈(引导页 flash 同款): 点击更新后按钮变"已下载 ✓", 1.2s 恢复
+      var fl = React.useState(null)
+      var flashKey = fl[0]; var setFlash = fl[1]
       var btn = function (label, cur, rem, kind) {
         var eq = same(cur, rem)
         var known = cur !== '?' && rem !== '?'
+        var isFlash = flashKey === kind
         return React.createElement('div', { style: { flex: 1, textAlign: 'center', minWidth: 0 } },
           React.createElement('div', { style: { fontSize: 12, opacity: .5, marginBottom: 4, whiteSpace: 'nowrap' } }, label),
           React.createElement('button', {
@@ -94,8 +98,11 @@ window.__ModuleLoader__.load({
               } else {
                 window.open(apkUrl, '_blank')
               }
+              // 就地反馈: 变"已下载 ✓"后 1.2s 恢复远程版本号
+              setFlash(kind)
+              setTimeout(function () { setFlash(null) }, 1200)
             },
-          }, rem),
+          }, isFlash ? '已下载 ✓' : rem),
           React.createElement('div', { style: { fontSize: 11, opacity: .4, marginTop: 4 } }, '当前 ' + cur),
         )
       }
