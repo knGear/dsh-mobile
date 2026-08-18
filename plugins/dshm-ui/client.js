@@ -1,9 +1,8 @@
 // dshm-ui — dshm 壳专属移动 UI 注入
 //
-// 哲学: dsh 本体绝对纯净; 本插件经官方 slots API 注册, 仅在 dshm 壳(UA 含 DSHM/)激活,
-//       浏览器/其他设备零注册零痕迹。
-// 职责边界: restart/reload/agent-task 由 dsh-agenttask 插件负责(独立仓库 1.0),
-//           本插件只管: 移动设置面板、移动版目录选择器、界面适配 CSS。
+// 哲学: dsh 本体绝对纯净; 本插件经官方 slots API 注册, 壳内(UA 含 DSHM/)或网页 /m 路径激活。
+// 职责边界: 本插件只做移动适配(移动设置面板/目录选择器/界面适配 CSS)。
+//           无任何 restart/reload 能力(危险, 调用不准确会杀 dsh; 属 task 插件职责)。
 window.__ModuleLoader__.load({
   id: 'dshm-ui',
   factory: (require) => {
@@ -97,15 +96,13 @@ window.__ModuleLoader__.load({
     var now = function () { var d = new Date(); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0') }
     var go = function (url) { location.href = url }
 
-    // ── 界面适配开关: 每个 UI 适配可独立关闭(localStorage 'dshm.css.<id>' = '1' 开 / '0' 关) ──
-    // dialog=设置弹窗适配(收窄/左贴/不截断/正文空位) header=主页标题三行 tooltip=禁用悬停气泡
-    // stats=统计条竖块化(buildStatsClone) bg=背景色同步(syncBg)
+    // ── 界面适配开关: 取舍后只留 3 个可独立关闭的(localStorage 'dshm.css.<id>' = '1' 开 / '0' 关) ──
+    // 设置弹窗适配 + 背景色同步 已去除开关, 恒开(属基础体验, 无需取舍)
+    // header=标题上移(压缩头部垂直空间) tooltip=禁用悬停气泡 stats=统计条竖块化(buildStatsClone)
     var ADAPTS = [
-      { id: 'dialog', label: '设置弹窗适配', def: '1' },
-      { id: 'header', label: '主页标题三行', def: '1' },
+      { id: 'header', label: '标题上移', def: '1' },
       { id: 'tooltip', label: '禁用悬停气泡', def: '1' },
       { id: 'stats', label: '统计条竖块', def: '1' },
-      { id: 'bg', label: '背景色同步', def: '1' },
     ]
     function adaptOn(id) { return getStored('dshm.css.' + id, '1') === '1' }
     function setAdapt(id, on) { setStored('dshm.css.' + id, on ? '1' : '0') }
@@ -381,14 +378,13 @@ window.__ModuleLoader__.load({
       }, [])
       var toggleSl = function (on) {
         setHint('保存中…')
+        // 生效提示按 UA 区分: 网页(非 DSHM)刷新网页生效; APK(DSHM)重启 dsh-mobile 生效
         fetchSl('/api/dshm-sessionlog?on=' + (on ? '1' : '0')).then(function (d) {
-          if (d && d.ok !== undefined) setSl(!!d.disabled)
-          if (d && d.ok !== undefined && d.needsRestart === false) {
-            setHint(on ? '已禁用 session log' : '已启用 session log')
-            setTimeout(function () { setHint('') }, 3000)
-          } else if (d && d.needsRestart) {
-            setHint(on ? '已禁用 session log，重启 dsh 后生效' : '已启用 session log，重启 dsh 后生效')
-            setTimeout(function () { setHint('') }, 4000)
+          if (d && d.ok !== undefined) {
+            setSl(!!d.disabled)
+            // 热切换已生效; 无感刷新: 短提示后自动 reload, 让会话头下载按钮等 UI 立即更新
+            setHint((on ? '已禁用 session log' : '已启用 session log') + '，正在刷新…')
+            setTimeout(function () { location.reload() }, 600)
           } else if (d && d.error) { showErr(String(d.error)) }
         }).catch(function (e) { showErr('操作失败: ' + e.message) })
       }
@@ -399,20 +395,14 @@ window.__ModuleLoader__.load({
       var boxBorder = '1px solid var(--dsw-alias-border-l3,#2a2a36)'
       var labelStyle = { display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: 14, marginBottom: 10 }
       return React.createElement('div', null,
-        // 额头: 引导页横按钮(APK only, 浏览器不可见)
-        IS_DSHM ? React.createElement('div', { style: { marginBottom: 14 } },
-          React.createElement('button', {
-            type: 'button',
-            style: Object.assign({}, btnStyle(true), { width: '100%', height: 44 }),
-            onClick: function () { go('dshm://guide') },
-          }, '引导页'),
-        ) : null,
-        // 线框: 左上角纯净模式开关; 开启后框内开关全部禁用(但纯净开关本身可切回, 不死锁)
-        React.createElement('div', {
-          style: { border: boxBorder, borderRadius: 12, padding: '12px 14px' },
+        // 线框: 一级开关(纯净模式)骑在左上角边框上 — fieldset/legend 原生语义,
+        // legend 透明自适应弹窗底色, 边框在 legend 处自动断开; 框内条目为二级
+        // 引导页/拉起浏览器在底部操作区(与版本检查同级), 顶部结构 Web/APK 一致
+        React.createElement('fieldset', {
+          style: { border: boxBorder, borderRadius: 12, padding: '18px 14px 12px', marginTop: 8, minWidth: 0, width: '100%', boxSizing: 'border-box' },
         },
-          React.createElement('label', {
-            style: { display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: 14, marginBottom: 12, fontWeight: 600 },
+          React.createElement('legend', {
+            style: { padding: '0 6px', marginLeft: 6, fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 },
           },
             React.createElement('input', {
               type: 'checkbox', checked: pure,
@@ -420,7 +410,7 @@ window.__ModuleLoader__.load({
             }),
             React.createElement('span', null, '纯净模式'),
           ),
-          // 框内: 纯净模式开启 → disabled + 弱化
+          // 框内(二级): 纯净模式开启 → disabled + 弱化
           React.createElement('div', { style: { opacity: pure ? .45 : 1, pointerEvents: pure ? 'none' : 'auto' } },
             // 第一个: 禁用 session log
             React.createElement('label', { style: labelStyle },
@@ -433,21 +423,13 @@ window.__ModuleLoader__.load({
             hintText ? React.createElement('div', {
               style: { fontSize: 11, color: 'var(--dsw-alias-label-tertiary,#8a8a99)', margin: '-4px 0 8px' },
             }, hintText) : null,
-            // 拉起浏览器(APK→系统浏览器入口, 仅壳内 AndroidShell 可用; 浏览器端不显示)
-            IS_DSHM ? React.createElement('div', { style: { display: 'flex', gap: 10, marginBottom: 10 } },
-              React.createElement('button', {
-                type: 'button', style: btnStyle(true), onClick: function () {
-                  try { AndroidShell.openInBrowser(window.location.href) } catch (e) {}
-                },
-              }, '拉起浏览器'),
-            ) : null,
-            // 目录选择器·原始界面
+            // 旧版工作区目录浏览器(勾选 = 让位给 dsh 自带原始版)
             React.createElement('label', { style: labelStyle },
               React.createElement('input', {
                 type: 'checkbox', checked: getStored('dshm.dirflow', '0') === '1',
                 onChange: function (e) { setStored('dshm.dirflow', e.target.checked ? '1' : '0'); location.reload() },
               }),
-              React.createElement('span', null, '目录选择器·原始界面'),
+              React.createElement('span', null, '旧版工作区目录浏览器'),
             ),
             // 界面适配: 每个 UI 适配独立开关(关闭即停用对应注入; 切换后立即生效, 无需重启)
             React.createElement('div', { style: { fontSize: 12, opacity: .6, margin: '10px 0 4px' } }, '界面适配'),
@@ -464,6 +446,22 @@ window.__ModuleLoader__.load({
             React.createElement(UiCustomPanel, null),
           ),
         ),
+        // 底部操作区(APK only: 引导页 + 拉起浏览器; 浏览器无 dshm:// 协议与系统浏览器桥)
+        // 与版本检查同级, 线框之外 → 顶部结构 Web/APK 一致, 降低两者视觉区别
+        IS_DSHM ? React.createElement('div', {
+          style: { marginTop: 18, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,.1)' },
+        },
+          React.createElement('div', { style: { display: 'flex', gap: 10 } },
+            React.createElement('button', {
+              type: 'button', style: btnStyle(true), onClick: function () { go('dshm://guide') },
+            }, 'App 引导页'),
+            React.createElement('button', {
+              type: 'button', style: btnStyle(true), onClick: function () {
+                try { AndroidShell.openInBrowser(window.location.href) } catch (e) {}
+              },
+            }, '拉起浏览器'),
+          ),
+        ) : null,
         // 版本检查(线框外独立区块, 横线分隔)
         React.createElement('div', {
           style: { marginTop: 18, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,.1)' },
@@ -498,8 +496,8 @@ window.__ModuleLoader__.load({
       // 界面适配 CSS: 按开关过滤生成(每个适配可独立关闭)
       // 使用 data-slot 语义锚点(不依赖 dsh bundle 构建哈希类名, 升级不易失效)
       var cssParts = []
-      // 设置弹窗适配: 水平 padding 收窄 + 侧栏左贴/收窄 + 图标文字间距 + 不截断 + 正文空位
-      if (adaptOn('dialog')) cssParts.push(
+      // 设置弹窗适配(恒开): 水平 padding 收窄 + 侧栏左贴/收窄 + 图标文字间距 + 不截断 + 正文空位
+      cssParts.push(
         '[role="dialog"][aria-modal="true"]{padding-left:11px !important;padding-right:11px !important}',
         '[role="dialog"][aria-modal="true"] > nav{width:calc(96px + var(--dshm-nav-w,0px)) !important;min-width:0 !important;margin-left:-5px !important;padding:12px 1px 0 !important;gap:8px !important}',
         '[role="dialog"][aria-modal="true"] > nav button{gap:2px !important}',
@@ -510,9 +508,9 @@ window.__ModuleLoader__.load({
       )
       // 主页顶部标题行: 标题独占一行 / 其余按钮第二行 / tabs 第三行
       if (adaptOn('header')) cssParts.push(
-        '[data-slot="conversation.session.header"] header nav{flex-wrap:wrap !important;row-gap:4px !important}',
-        '[data-slot="conversation.session.header"] header nav > *:first-child{flex-basis:100% !important}',
-        '[data-slot="conversation.session.header"] header [role="tablist"]{flex-basis:100% !important;margin-top:4px !important}',
+        // 标题上移: 压缩头部顶部留白, 标题行贴近顶部, 把垂直空间让给对话区
+        '[data-slot="conversation.session.header"] header{padding-top:2px !important}',
+        '[data-slot="conversation.session.header"] header nav{row-gap:0 !important;align-items:center !important}',
       )
       // 禁用悬停气泡(触屏不需要按钮功能说明)
       if (adaptOn('tooltip')) cssParts.push('[role="tooltip"]{display:none !important}')
@@ -535,7 +533,7 @@ window.__ModuleLoader__.load({
       var lastBg = null
       function syncBg() {
         try {
-          if (!adaptOn('bg')) return
+          // 背景色同步恒开(仅壳内有 AndroidShell 时生效; 浏览器无桥自然跳过)
           if (typeof AndroidShell === 'undefined' || !AndroidShell.setBackgroundColor) return
           var el = document.querySelector('[data-slot="conversation.session.header"]') || document.body
           if (!el) el = document.body

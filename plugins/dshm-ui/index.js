@@ -1,7 +1,7 @@
 // dshm-ui host 侧 — 移动设置面板所需端点(仅壳内使用, 不影响 dsh 本体行为)
 //
-// 职责边界: restart/reload/agent-task 由 dsh-agenttask 插件负责(独立仓库 1.0),
-//           本插件只管: 原版 UI 拉起、版本检查、移动版目录选择器。
+// 职责边界: 本插件只做移动适配(原版 UI 拉起/版本检查/目录选择器/session log 开关)。
+//           无任何 restart/reload 能力(危险, 调用不准确会杀 dsh; 属 task 插件职责)。
 import { createRequire } from 'node:module'
 import { spawnSync } from 'node:child_process'
 import { readdirSync, statSync, mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
