@@ -8,4 +8,13 @@
         <item name="android:windowLightNavigationBar">false</item>
         <item name="android:windowBackground">#151517</item>
     </style>
+    <!-- 引导页: 半透明覆盖在设置页上 -->
+    <style name="GuideTheme" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">#CC151517</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:statusBarColor">#CC151517</item>
+        <item name="android:navigationBarColor">#CC151517</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
 </resources>

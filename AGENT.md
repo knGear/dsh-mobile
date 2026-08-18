@@ -4,7 +4,7 @@
 > 2026-08-15 新会话已接手: 全量同步 live → repo 并推送 (commit c5f20d2)。
 
 ## 项目三件套
-1. **APK 壳** `/sdcard/1tui/apk/dsh/` (com.dsh.mobile, 当前版本 0.37)
+1. **APK 壳** `/sdcard/1tui/apk/dsh/` (com.dshm, 当前版本 0.37)
 2. **插件** 实际运行在 `~/.dsh/profiles/node_modules/{mobile-ui,mobile-AndroidNotify}/` (Termux 原生部署, dsh web 从磁盘实时加载 client.js, 改完刷新页面即生效; host 侧 index.js 需重启 dsh)
 3. **GitHub repo** `/sdcard/1tui/dsh-mobile/` (镜像, 改动后手动同步推送; SSH 已配好, 推 main 分支)
 
@@ -37,7 +37,7 @@
 ## 构建命令(proot debian)
 ```bash
 proot-distro login debian -- bash -c '
-SRC=/sdcard/1tui/apk/dsh/app/src/main; BUILD=/root/dsh-build
+SRC=/sdcard/1tui/apk/dsh/apk/src/main; BUILD=/root/dsh-build
 SDK=/root/android-sdk; JAR=$SDK/platforms/android-34/android.jar
 D8=$SDK/cmdline-tools/cmdline-tools/bin/d8
 KS=/sdcard/1tui/apk/dsh/release.keystore
@@ -45,11 +45,11 @@ OUT=/sdcard/1tui/apk/dsh/out
 rm -rf $BUILD; mkdir -p $BUILD/gen $BUILD/classes $OUT; cd $BUILD
 /root/aapt package -f -M $SRC/AndroidManifest.xml -S $SRC/res -J gen -I $JAR -F base.unsigned.apk
 javac -source 1.8 -target 1.8 -bootclasspath $JAR -d classes gen/R.java $(find $SRC/java -name "*.java") 2>/dev/null
-$D8 --lib $JAR --min-api 26 --output . classes/com/dsh/mobile/*.class
+$D8 --lib $JAR --min-api 26 --output . classes/com/dshm/*.class
 zip -j base.unsigned.apk classes.dex
 zipalign -f 4 base.unsigned.apk base.aligned.apk
-apksigner sign --ks $KS --ks-pass pass:dshmobile123 --ks-key-alias dshmobile --out $OUT/DSH-v0.37.apk base.aligned.apk'
-# 安装: su -c "cp .../DSH-v0.37.apk /data/local/tmp/dsh37.apk && chmod 644 ... && pm install -r /data/local/tmp/dsh37.apk"
+apksigner sign --ks $KS --ks-pass pass:dshmobile123 --ks-key-alias dshmobile --out $OUT/DSHM-v0.37.apk base.aligned.apk'
+# 安装: su -c "cp .../DSHM-v0.37.apk /data/local/tmp/dsh37.apk && chmod 644 ... && pm install -r /data/local/tmp/dsh37.apk"
 ```
 
 ## 版本历史

@@ -57,5 +57,5 @@ startService(i); // 不是 startActivity！
 
 ```bash
 bash build.sh          # proot Debian 内（见 build-release.md）
-# 产物 out/DSH-v<版本>.apk
+# 产物 out/DSHM-v<版本>.apk
 ```

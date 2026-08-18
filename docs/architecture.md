@@ -8,7 +8,7 @@
 ┌─ L1 文本层: README / scripts/*.sh / cordis.patch.yml / termux.properties
 ├─ L2 插件层: plugins/mobile-ui (client.js + index.js)
 │             plugins/mobile-AndroidNotify (index.js + client.js)
-└─ L3 壳层:   app/src/main/java/com/dsh/mobile/ (MainActivity + NotifyReceiver)
+└─ L3 壳层:   apk/src/main/java/com/dshm/ (MainActivity + NotifyReceiver)
 ```
 
 原则：**能放 L2 的绝不进 L3**（L3 要重编译，L2 重启/刷新即可）。

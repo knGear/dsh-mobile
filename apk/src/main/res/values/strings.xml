@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">dshm</string>
+    <string name="toast_ip_port">格式应为 IP:端口</string>
+    <string name="toast_open_fail">无法打开链接</string>
+    <string name="toast_dl_fail">无法打开下载链接</string>
+    <string name="toast_launch_fail">拉起失败：请检查 Termux 设置里是否已允许外部应用执行命令</string>
+</resources>

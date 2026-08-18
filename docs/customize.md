@@ -49,7 +49,7 @@ function myLayoutThing() {
 ## 5. 通知换音效（无需改代码）
 
 系统级：长按通知 → 通知类别 → 声音，任意选。
-内置专属音效才动壳：`res/raw/` 放音频 + `ensureChannel` 里 `ch.setSound(Uri.parse("android.resource://com.dsh.mobile/raw/xxx"))`。
+内置专属音效才动壳：`res/raw/` 放音频 + `ensureChannel` 里 `ch.setSound(Uri.parse("android.resource://com.dshm/raw/xxx"))`。
 
 ## 6. 安装脚本改动
 

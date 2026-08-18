@@ -117,7 +117,7 @@ https://github.com/knGear/dsh-mobile
 # 环境: proot Debian(Trixie) + aapt/javac/d8/zipalign/apksigner
 git clone git@github.com:knGear/dsh-mobile.git
 cd dsh-mobile && bash build.sh
-# 产物: out/DSH-v<版本>.apk
+# 产物: out/DSHM-v<版本>.apk
 ```
 
 > ⚠ 老 d8 不支持 lambda（`Unable to find method metafactory`）——Java 代码一律用匿名类。
@@ -125,16 +125,19 @@ cd dsh-mobile && bash build.sh
 ## 项目结构
 
 ```
-app/                      # Android 壳 (com.dsh.mobile, minSdk 26 / target 34)
-  src/main/java/          #   MainActivity(安全区/IME/离线页/JS桥) + NotifyReceiver(通知渠道)
+apk/                      # Android 壳 (com.dshm, minSdk 26 / target 34)
+  src/main/java/          #   MainActivity(冷启动/连接/JS桥) + GuideActivity + ShellBridge 等
+  src/main/assets/        #   first.html(引导页: 初始化/离线/设置统一)
   src/main/res/           #   图标/主题/多语言 strings
 build.sh                  # 构建脚本(proot Debian 混合构建)
 release.keystore          # 发布签名(alias dshmobile, 密码随仓库公开——FOSS 实践)
 icon-master.svg           # 图标源
 plugins/
   cordis.patch.yml        # 插件挂载示例
-  mobile-ui/              # 移动 UI 插件(布局注入/设置/活动计数)
-  mobile-AndroidNotify/   # 通知插件(状态机/开关/工具)
+  dshm-ui/                # 移动 UI 插件(UA门控/移动设置/目录选择器/界面适配)
+  # dsh-agenttask 有独立仓库 1.0, 不在此管理
+task.md                   # task 相关处理记录(重启包装脚本等)
+START.md                  # 移动端体验需求规格(跑分题原文)
 scripts/
   dsh-install-termux.sh   # Termux 原生一键安装(含插件)
   dsh-install-linux.sh    # Termux 内 Ubuntu 一键安装(含插件)

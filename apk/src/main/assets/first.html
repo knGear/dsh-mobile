@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>dshm</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: #151517; color: #e6e6ef;
+    font-family: sans-serif; min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    text-align: center;
+  }
+  .card { max-width: 360px; margin: 0 auto; padding: 20px 18px; background: #151517; border-radius: 14px; }
+  .whale { font-size: 48px; line-height: 1; margin-bottom: 4px; }
+  h2 { font-size: 19px; margin: 0 0 8px; }
+
+  .line { margin: 0 0 4px; font-size: 13px; color: #c8c8d8; line-height: 1.5; }
+  .line.dim { color: #8a8a99; margin-bottom: 12px; }
+  .line.ind { margin-bottom: 12px; }
+
+  button {
+    font-family: inherit; cursor: pointer; background: transparent;
+    -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+    touch-action: manipulation;
+    min-height: 20px; padding: 3px 6px; font-size: 13px; line-height: 1.3;
+  }
+  /* 青色命令按钮: 点击=复制, 长按=拉起 Termux 执行 */
+  .cy {
+    border-radius: 3px; border: 1px solid #4dd0e1;
+    color: #4dd0e1; font-weight: 600;
+  }
+  .cy:active { background: rgba(77, 208, 225, .12); }
+  /* 蓝色下划线链接按钮: 点击=浏览器打开, 无长按 */
+  .ln {
+    border-radius: 3px; border: 1px solid #6b8aff;
+    color: #6b8aff; text-decoration: underline;
+  }
+  /* 白字白边通知按钮 */
+  .wh {
+    border-radius: 4px; border: 1px solid #e6e6ef;
+    color: #e6e6ef;
+  }
+  .wh.granted, .wh:disabled {
+    border-color: #3a3a4a; color: #6a6a78; text-decoration: none; cursor: default;
+  }
+
+  .row { display: flex; gap: 8px; margin: 0 0 6px; }
+  /* 历史连接 chips(离线页): 本机条目只显端口 */
+  .cy.b { font-weight: 700; }
+  /* 问号按钮(部署对比入口) */
+  .q {
+    min-height: 20px; padding: 1px 5px; border-radius: 50%;
+    border: 1px solid #6a6a78; color: #6a6a78; font-size: 11px; line-height: 1;
+    background: transparent; cursor: pointer; margin-left: 2px;
+  }
+  /* 对比图 overlay */
+  #compare {
+    display: none; position: fixed; inset: 0; z-index: 100;
+    background: rgba(0,0,0,.7); align-items: center; justify-content: center;
+  }
+  #compare.show { display: flex; }
+  #compare .box {
+    width: min(440px, 92vw); max-height: 88vh; overflow: auto;
+    background: #151517; border-radius: 12px; padding: 18px 16px; position: relative;
+  }
+  #compare .close {
+    position: absolute; top: 10px; right: 12px; cursor: pointer;
+    color: #6a6a78; font-size: 18px; line-height: 1; border: none; background: transparent;
+  }
+  #compare h3 { font-size: 14px; margin: 0 0 12px; color: #e6e6ef; }
+  #compare table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  #compare th, #compare td { text-align: left; padding: 6px 6px; border-bottom: 1px solid #2a2a36; vertical-align: top; }
+  #compare th { color: #4dd0e1; font-weight: 600; white-space: nowrap; }
+  #compare td.k { color: #8a8a99; width: 64px; white-space: nowrap; }
+  #compare .note { font-size: 11px; color: #5a5a6a; margin-top: 10px; line-height: 1.5; }
+  .trouble { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; margin: 0 0 4px; overflow: hidden; }
+  .trouble .dim { white-space: nowrap; margin-right: 2px; }
+  #hist { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 6px; width: 100%; align-items: center; }
+  #hist .hist-label { font-size: 12px; color: #6a6a78; margin-right: 4px; }
+  #hist button {
+    min-height: 16px; padding: 1px 5px; border-radius: 4px; border: 1px solid #3a3a4a;
+    background: #2a2a36; color: #c8c8d8; font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+  #hist button:active { background: #34344a; }
+  #host {
+    flex: 1; min-width: 0; padding: 4px 5px; border-radius: 4px;
+    border: 1px solid #3a3a4a; background: #16161f; color: #e6e6ef;
+    font-size: 14px; outline: none; font-family: inherit;
+  }
+  .go {
+    border-radius: 4px; border: none;
+    background: #3d6be0; color: #fff; font-weight: 600;
+  }
+  .go:active { background: #3258b8; }
+
+  .repos {
+    display: flex; gap: 8px; margin: 0 0 6px;
+    justify-content: center; flex-wrap: wrap; align-items: center;
+  }
+
+  .hint { margin: 0 0 4px; font-size: 12px; color: #6a6a78; line-height: 1.5; }
+  .code {
+    margin: 0; text-align: left; background: #1a1a24; border: 1px solid #2a2a36;
+    border-radius: 8px; padding: 10px 12px; font-size: 11px; color: #8fb1ff;
+    font-family: monospace; word-break: break-all; cursor: pointer;
+  }
+  .code .cap { margin-top: 6px; font-size: 10px; color: #5a5a6a; text-align: center; }
+  /* 引导页 ✕(右上角): 仅 ?guide=1 显示 */
+  #guide-close {
+    display: none; position: fixed; top: 14px; right: 14px; z-index: 10;
+    width: 34px; height: 34px; border-radius: 17px;
+    border: 1px solid #3a3a4a; background: #1a1a24; color: #c8c8d8;
+    font-size: 16px; line-height: 1;
+  }
+  body.guide #guide-close { display: block; }
+</style>
+</head>
+<body>
+<button id="guide-close" onclick="try{AndroidShell.close()}catch(e){history.back()}">&#10005;</button>
+
+<div class="card">
+
+  <div class="whale">&#128011;</div>
+
+  <p class="line"><span data-i="l1a">下载安装</span>
+    <button class="ln" onclick="dlTermux()">Termux</button>
+    <span data-i="l1b">并部署 dsh 于</span></p>
+
+  <p class="line ind">
+    <button class="cy" data-cmd="install-termux" data-i="b1">Termux（性能）</button>
+    <span data-i="or">或</span>
+    <button class="cy" data-cmd="install-linux" data-i="b2">Termux-Ubuntu（兼容）</button>
+    <button class="q" onclick="showCompare()">?</button>
+  </p>
+
+  <p class="line dim"><span data-i="l3a">已安装？在 termux 运行</span>
+    <button class="cy" data-cmd="dsh-web">dsh-web</button>
+    <span data-i="l3b">或连接到</span></p>
+
+  <div class="row">
+    <input id="host" placeholder="127.0.0.1:3080" autocapitalize="off" autocomplete="off" spellcheck="false">
+    <button class="go" onclick="doConnect()" data-i="connect">连接</button>
+  </div>
+
+  <div id="hist"><span class="hist-label" data-i="hist">历史连接</span></div>
+
+  <p class="line dim"><span data-i="trouble">遇到困难？</span>
+    <button class="ln" onclick="openInBrowser('http://127.0.0.1:3080/?plain=1')" data-i="fx1">浏览器原版</button>
+    <button class="cy" data-cmd="dsh-reinstall">原版验证安装</button>
+    <button class="cy" data-cmd="install-termux">简易重装</button>
+    <button class="cy b" data-cmd="dsh-repair">清洁重装</button></p>
+
+  <div class="repos">
+    <button class="ln" onclick="openUrl('https://github.com/knGear/dsh-mobile')" data-i="repo1">dsh-mobile 仓库</button>
+    <button class="ln" onclick="openUrl('https://github.com/deepseek-ai/deepseek-harness')" data-i="repo2">dsh 仓库</button>
+    <button id="notify-btn" class="wh" onclick="askNotify()" data-i="notify">开启通知</button>
+  </div>
+
+  <div id="compare" onclick="if(event.target===this)hideCompare()">
+    <div class="box">
+      <button class="close" onclick="hideCompare()">&#10005;</button>
+      <h3>部署方式对比</h3>
+      <table>
+        <tr><th></th><th>Termux 原生</th><th>proot Ubuntu</th></tr>
+        <tr><td class="k">核心</td><td>dsh 跑在 Termux Android 用户态</td><td>dsh 跑在 proot 模拟的 Linux</td></tr>
+        <tr><td class="k">性能</td><td>原生 ARM64, 无翻译层, 最快 ✓</td><td>proot syscall 翻译, 约 10-30% 损耗(I/O 尤慢)</td></tr>
+        <tr><td class="k">权限</td><td>Android 应用沙箱 + termux-am/storage/RUN_COMMAND</td><td>Linux 完整权限模型(可选 fake-root), 底层仍受 Android 沙箱 ✓</td></tr>
+        <tr><td class="k">稳定</td><td>直接进程, Android 12+ 需 setsid 守护(已解决)</td><td>proot 偶有边界 case; 环境标准 apt 包全 ✓</td></tr>
+        <tr><td class="k">安全</td><td>Android 沙箱隔离, termux.properties 可调</td><td>双层隔离(沙箱+Linux 权限) ✓</td></tr>
+        <tr><td class="k">兼容</td><td>原生模块(node-pty/koffi/sharp)需 Termux 编译, 有坑</td><td>标准 Linux, npm 原生模块预编译/易编译, 少坑 ✓</td></tr>
+        <tr><td class="k">部署难度</td><td>中: 一键脚本但需多项修补</td><td>易: proot 内 apt 装齐依赖, npm 直装, 无修补 ✓</td></tr>
+        <tr><td class="k">维护升级</td><td>需重打修补: npm 卸载重装后 wrapper/补丁丢失</td><td>npm 升级即可, 修补少 ✓</td></tr>
+      </table>
+      <p class="note">两者都装 dsh; 区别仅 dsh 跑在哪一层。性能优先选 Termux 原生; 兼容/依赖完整优先 proot Ubuntu。✓ = 该项更优。</p>
+    </div>
+  </div>
+
+  <p class="hint"><button class="cy" onclick="copyAllow(this)" data-i="cap">点击复制</button><span data-i="hint">命令到 Termux 运行，即可长按青色按钮一键运行</span></p>
+
+</div>
+
+<script>
+// ── i18n(语言/状态向壳查询, 跟随系统) ─────────────────────
+var LANG = 'zh', STATUS = null;
+try { STATUS = JSON.parse(AndroidShell.getStatus()); LANG = STATUS.lang || 'zh'; } catch (e) {}
+var D = {
+  zh: {
+    l1a: '下载安装', l1b: '并部署 dsh 于',
+    b1: 'Termux（性能）', or: '或', b2: 'Termux-Ubuntu（兼容）',
+    l3a: '已安装？在 termux 运行', l3b: '或连接到', l4: '长按一键运行需先开启',
+    trouble: '遇到故障？', fx1: '浏览器原版', fx2: '原版验证安装', fx3: '简易重装', fx4: '清洁重装',
+    connect: '连接', repo1: 'dsh-mobile 仓库', repo2: 'dsh 仓库',
+    notify: '开启通知', hist: '历史连接', hint: '命令到 Termux 运行，即可长按青色按钮一键运行',
+    cap: '点击复制', copied: '已复制 ✓'
+  },
+  en: {
+    l1a: 'Download &amp; install', l1b: 'and deploy dsh on',
+    b1: 'Termux (Perf)', or: 'or', b2: 'Termux-Ubuntu (Compat)',
+    l3a: 'Already installed? Run', l3b: 'in Termux, or connect to', l4: 'Enable first for one-tap run:',
+    trouble: 'Fault?', fx1: 'Original in browser', fx2: 'Verify-install (pristine)', fx3: 'Quick reinstall', fx4: 'Clean reinstall',
+    connect: 'Connect', repo1: 'dsh-mobile repo', repo2: 'dsh repo',
+    notify: 'Enable notifications', hint: ' the command and run it in Termux to enable long-press one-tap run',
+    cap: 'Tap to copy', copied: 'Copied ✓'
+  }
+};
+var T = D[LANG] || D.zh;
+(function applyI18n() {
+  var els = document.querySelectorAll('[data-i]');
+  for (var k = 0; k < els.length; k++) {
+    els[k].textContent = T[els[k].getAttribute('data-i')] || els[k].textContent;
+  }
+  // 三页面合一: 初始化/离线/设置引导都是同一页面(布局功能一致, 无标题区分)
+  // 仅 guide(设置主动入口) 显示右上角 ✕ 关闭按钮
+  if (location.search.indexOf('guide=1') !== -1) document.body.className = 'guide';
+})();
+
+// ── 连接 chips: 第一个固定本机 3080, 后接历史(仅成功连接过的) ────────
+(function renderHist() {
+  var b = document.getElementById('hist');
+  if (!b) return;
+  // 固定本机 chip
+  var local = document.createElement('button');
+  local.textContent = '3080';
+  local.onclick = function () { try { AndroidShell.connect('127.0.0.1:3080'); } catch (e) {} };
+  b.appendChild(local);
+  // 历史(过滤本机避免重复; 仅 onPageFinished 成功验证过的才入库)
+  if (!STATUS || !STATUS.hist) return;
+  for (var k = 0; k < STATUS.hist.length; k++) {
+    (function (h) {
+      if (h === '127.0.0.1:3080' || h === 'localhost:3080') return; // 本机已固定
+      var c = document.createElement('button');
+      c.textContent = (h.indexOf('127.0.0.1:') === 0 || h.indexOf('localhost:') === 0)
+        ? h.substring(h.indexOf(':') + 1) : h;
+      c.onclick = function () { try { AndroidShell.connect(h); } catch (e) {} };
+      b.appendChild(c);
+    })(STATUS.hist[k]);
+  }
+})();
+
+// ── 动作 ────────────────────────────────────────────────
+function openUrl(u) { try { AndroidShell.openUrl(u); } catch (e) {} }
+function openInBrowser(u) { try { AndroidShell.openInBrowser(u); } catch (e) {} }
+function showCompare() { document.getElementById('compare').classList.add('show') }
+function hideCompare() { document.getElementById('compare').classList.remove('show') }
+function dlTermux() { try { AndroidShell.openTermuxDownload(); } catch (e) {} }
+function askNotify() { try { AndroidShell.requestNotifyPermission(); } catch (e) {} }
+
+// 输入规范化: 空=默认 / 纯端口 / :端口 / 纯host补3080 / 带端口原样; 回填后连接
+function doConnect() {
+  var i = document.getElementById('host');
+  var v = i.value.trim();
+  if (!v) v = '127.0.0.1:3080';
+  else if (/^\d{1,5}$/.test(v)) v = '127.0.0.1:' + v;
+  else if (/^:\d{1,5}$/.test(v)) v = '127.0.0.1' + v;
+  else if (!/^[a-zA-Z0-9.\-]+:\d{1,5}$/.test(v)) v = v + ':3080';
+  i.value = v;
+  try { AndroidShell.connect(v); } catch (e) {}
+}
+
+// ── 按钮交互: 点击=复制+就地✓, 长按700ms=拉起Termux ──────
+// v0.39 教训: pointermove 无容差必被手指微抖打断 → 12px 容差;
+//            WebView 长按弹系统文本菜单抢手势 → contextmenu 拦截。
+function flash(el) {
+  var orig = el.innerHTML, w = el.offsetWidth;
+  el.style.width = w + 'px';
+  el.innerHTML = T.copied;
+  setTimeout(function () { el.innerHTML = orig; el.style.width = ''; }, 1200);
+}
+function copyAllow(el) {
+  var cmd = '';
+  try { cmd = AndroidShell.getCommand('allow-external'); } catch (e) {}
+  if (cmd) { try { AndroidShell.copyText(cmd); } catch (e) {} }
+  flash(el);
+}
+function copyCmd(el, id) {
+  var cmd = '';
+  try { cmd = AndroidShell.getCommand(id); } catch (e) {}
+  if (cmd) { try { AndroidShell.copyText(cmd); } catch (e) {} }
+  flash(el);
+}
+function bindPress(el, id) {
+  var t = null, longFired = false, sx = 0, sy = 0, TOL = 12;
+  el.addEventListener('pointerdown', function (e) {
+    longFired = false; sx = e.clientX; sy = e.clientY;
+    if (t) clearTimeout(t);
+    t = setTimeout(function () {
+      longFired = true;
+      try { navigator.vibrate && navigator.vibrate(30); } catch (e) {}
+      try { AndroidShell.runInTermux(id); } catch (e) {}
+    }, 700);
+  }, { passive: true });
+  el.addEventListener('pointermove', function (e) {
+    if (t && (Math.abs(e.clientX - sx) > TOL || Math.abs(e.clientY - sy) > TOL)) {
+      clearTimeout(t); t = null;
+    }
+  }, { passive: true });
+  el.addEventListener('pointerup', function () { if (t) { clearTimeout(t); t = null; } });
+  el.addEventListener('pointercancel', function () { if (t) { clearTimeout(t); t = null; } longFired = false; });
+  el.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  el.addEventListener('click', function (e) {
+    if (longFired) { longFired = false; e.preventDefault(); e.stopPropagation(); return; }
+    copyCmd(el, id);
+  });
+}
+var cys = document.querySelectorAll('.cy');
+for (var k = 0; k < cys.length; k++) bindPress(cys[k], cys[k].getAttribute('data-cmd'));
+
+
+// ── 通知按钮态(进入时 + 切回前台时刷新) ──────────────────
+function refreshNotify() {
+  var granted = false;
+  try { granted = JSON.parse(AndroidShell.getStatus()).notify === 1; } catch (e) {}
+  var b = document.getElementById('notify-btn');
+  if (granted) {
+    b.disabled = true; b.classList.add('granted');
+    b.textContent = T.notify + ' \u2713';
+  } else {
+    b.disabled = false; b.classList.remove('granted');
+    b.textContent = T.notify;
+  }
+}
+window.__refresh = refreshNotify;
+refreshNotify();
+</script>
+</body>
+</html>

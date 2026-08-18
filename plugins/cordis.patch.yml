@@ -1,9 +1,8 @@
 # 移动前端本地插件(非 npm 包, 位于 ~/.dsh/profiles/node_modules/):
-#   mobile-AndroidNotify(通知+跳转) / mobile-ui(移动设置+重启按钮)
-# ⚠ 带 client 的包 exports 必须含 "." 与 "./package.json"
-# ⚠ id 全树唯一; 用 mobile- 前缀避免与上游裸 id(ui/notify)撞名
+#   dshm-ui(移动设置+目录选择器+界面适配) — dshm 壳专属(UA 门控) + 网页 /m 入口
+# 注意: 带 client 的包 exports 必须含 "." 与 "./package.json"
+# 注意: id 全树唯一; 用 dshm- 前缀避免与上游裸 id 撞名
+# 注意: dsh-agenttask(任务监视)有独立仓库 1.0, 不在此挂载
 - insert:
-    - id: mobile-notify
-      name: 'mobile-AndroidNotify'
-    - id: mobile-ui
-      name: 'mobile-ui'
+    - id: dshm-ui
+      name: 'dshm-ui'

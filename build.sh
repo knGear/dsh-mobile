@@ -4,7 +4,7 @@
 # 从仓库目录运行即可(路径相对化, 发布构建以仓库源码为准)
 set -e
 DIR="$(cd "$(dirname "$0")" && pwd)"
-SRC="$DIR/app/src/main"
+SRC="$DIR/apk/src/main"
 BUILD=/root/dsh-build
 SDK=/root/android-sdk
 JAR=$SDK/platforms/android-34/android.jar
@@ -20,6 +20,7 @@ cd "$BUILD"
 echo "== 1/5 aapt 资源打包 =="
 /root/aapt package -f \
   -M "$SRC/AndroidManifest.xml" -S "$SRC/res" \
+  -A "$SRC/assets" \
   -J gen -I "$JAR" -F base.unsigned.apk
 
 echo "== 2/5 javac 编译 =="
@@ -27,16 +28,16 @@ javac -source 1.8 -target 1.8 -bootclasspath "$JAR" \
   -d classes gen/R.java $(find "$SRC/java" -name "*.java")
 
 echo "== 3/5 d8 转 dex =="
-"$D8" --lib "$JAR" --min-api 26 --output . classes/com/dsh/mobile/*.class
+"$D8" --lib "$JAR" --min-api 26 --output . classes/com/dshm/*.class
 
 echo "== 4/5 注入 dex + zipalign + 签名 =="
 cp base.unsigned.apk app.apk
 zip -j app.apk classes.dex
 zipalign -f 4 app.apk app.aligned.apk
 apksigner sign --ks "$KS" --ks-key-alias dshmobile --ks-pass pass:dshmobile123 --key-pass pass:dshmobile123 app.aligned.apk
-mv app.aligned.apk dsh-shell.apk
+mv app.aligned.apk dshm.apk
 
 echo "== 5/5 输出 =="
 VER=$(grep -oP "android:versionName=\"\K[0-9.]+" "$SRC/AndroidManifest.xml")
-cp dsh-shell.apk "$OUT/DSH-v$VER.apk"
-echo "=> $OUT/DSH-v$VER.apk ($(stat -c%s "$OUT/DSH-v$VER.apk") bytes)"
+cp dshm.apk "$OUT/DSHM-v$VER.apk"
+echo "=> $OUT/DSHM-v$VER.apk ($(stat -c%s "$OUT/DSHM-v$VER.apk") bytes)"
