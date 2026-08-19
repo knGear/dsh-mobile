@@ -73,6 +73,10 @@ class ShellBridge {
         {"dsh-repair",
          "curl -fsSL https://raw.githubusercontent.com/knGear/dsh-mobile/main/scripts/dsh-repair.sh"
          + " -o $HOME/dsh-repair.sh && bash $HOME/dsh-repair.sh", "", "fg"},
+        // dsh 更新: 快速更新脚本(仅 npm+修补+wrapper, 长按执行)
+        {"dsh-update",
+         "curl -fsSL https://raw.githubusercontent.com/knGear/dsh-mobile/main/scripts/dsh-update-termux.sh"
+         + " -o $HOME/dsh-update-termux.sh && bash $HOME/dsh-update-termux.sh", "", "fg"},
         {"allow-external",
          "echo allow-external-apps=true > ~/.termux/termux.properties && termux-reload-settings", "", "bg"},
     };

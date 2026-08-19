@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.dsh.mobile"
-    android:versionCode="53"
-    android:versionName="0.053">
+    android:versionCode="54"
+    android:versionName="0.054">
 
     <uses-sdk android:minSdkVersion="17" android:targetSdkVersion="34" />
 

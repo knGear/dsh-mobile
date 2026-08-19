@@ -44,28 +44,24 @@ window.__ModuleLoader__.load({
     }
 
     // 版本检查: 三条目 — dsh(官方) / dshm-ui(插件) / dsh-mobile(壳)
-    // 当前版本: 走 /api/dshm-versions(dsh + 插件, 壳从 UA 传入)
-    // 远程版本: dsh 走 npm registry; dshm-ui 走 dshm-ver; dsh-mobile 走 dsh-mobile-ver
+    // 当前版本: 走 /api/dshm-versions(dsh + 壳, 壳从 UA 传入)
+    // 远程版本: dsh 走 npm registry; dsh-mobile 走 dsh-mobile-ver
+    // 边界: dshm-ui 插件走官方通道(install-dshm-ui.sh), 不在此面板
     function VersionCheck() {
       var React = require('react')
-      var st = React.useState({ dshCur: '?', dshmUiCur: '?', dshmShellCur: '?', dshRem: '?', dshmUiRem: '?', dshmShellRem: '?', env: 'unknown', npmCmd: 'npm i -g @deepseek-ai/dsh', ts: '' })
+      var st = React.useState({ dshCur: '?', dshmShellCur: '?', dshRem: '?', dshmShellRem: '?', ts: '' })
       var v = st[0]; var setV = st[1]
       React.useEffect(function () {
         var m = /DSHM\/([\d.]+)/.exec(navigator.userAgent)
         var shell = m ? m[1] : ''
         fetch('/api/dshm-versions?shell=' + encodeURIComponent(shell)).then(function (r) { return r.json() }).then(function (j) {
           setV(function (o) { return Object.assign({}, o, {
-            dshCur: j.dsh || '?', dshmUiCur: j.dshmUi || '?', dshmShellCur: j.dshmShell || '?', env: j.env || 'unknown', npmCmd: j.npmCmd || 'npm i -g @deepseek-ai/dsh', ts: now(),
+            dshCur: j.dsh || '?', dshmShellCur: j.dshmShell || '?', ts: now(),
           }) })
         }).catch(function () {})
         fetch('https://registry.npmjs.org/@deepseek-ai/dsh/latest').then(function (r) { return r.json() }).then(function (j) {
           setV(function (o) { return Object.assign({}, o, { dshRem: j.version || '?', ts: now() }) })
         }).catch(function () { setV(function (o) { return Object.assign({}, o, { dshRem: '?', ts: now() }) }) })
-        fetch('https://raw.githubusercontent.com/knGear/dsh-mobile/main/dshm-ver').then(function (r) {
-          return r.text()
-        }).then(function (t) {
-          setV(function (o) { return Object.assign({}, o, { dshmUiRem: (t || '?').trim(), ts: now() }) })
-        }).catch(function () { setV(function (o) { return Object.assign({}, o, { dshmUiRem: '?', ts: now() }) }) })
         fetch('https://raw.githubusercontent.com/knGear/dsh-mobile/main/dsh-mobile-ver').then(function (r) {
           return r.text()
         }).then(function (t) {
@@ -73,11 +69,10 @@ window.__ModuleLoader__.load({
         }).catch(function () { setV(function (o) { return Object.assign({}, o, { dshmShellRem: '?', ts: now() }) }) })
       }, [])
       var same = function (cur, rem) { return cur !== '?' && rem !== '?' && cur === rem }
-      // 就地反馈(引导页 flash 同款): 点击更新后按钮变"已下载 ✓", 1.2s 恢复
+      // 就地反馈(引导页 flash 同款)
       var fl = React.useState(null)
       var flashKey = fl[0]; var setFlash = fl[1]
-      // 复制命令到剪贴板(黄色按钮兜底: 环境未知时复制 npm 安装命令)
-      var copyCmd = function (text, kind) {
+      var copyText = function (text, kind) {
         try {
           if (typeof AndroidShell !== 'undefined' && AndroidShell.copyText) AndroidShell.copyText(text)
           else if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text)
@@ -85,109 +80,74 @@ window.__ModuleLoader__.load({
         setFlash(kind)
         setTimeout(function () { setFlash(null) }, 1200)
       }
-      var btn = function (label, cur, rem, kind) {
+      // dsh 更新命令(点击复制 / 长按 Termux 执行 — 引导页青色按钮同款交互)
+      var DSH_UPDATE_CMD = 'curl -fsSL https://raw.githubusercontent.com/knGear/dsh-mobile/main/scripts/dsh-update-termux.sh -o $HOME/dsh-update-termux.sh && bash $HOME/dsh-update-termux.sh'
+      // dsh 条目: 灰(无新版) / 青(有新版: 点击复制命令, 长按拉起 Termux 执行)
+      var dshBtn = function (label, cur, rem) {
         var eq = same(cur, rem)
         var known = cur !== '?' && rem !== '?'
-        var isFlash = flashKey === kind
-        // dsh 按钮三态: 灰(同版/离线/拉取失败) / 蓝(有新版+环境可检测→点击即更新+终端) / 黄(有新版+环境未知→复制 npm 命令, 普通黄)
-        var yellow = kind === 'dsh' && !eq && known && v.env === 'unknown'
-        var blue = kind === 'dsh' && !eq && known && v.env !== 'unknown'
-        var yellowStyle = { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: 38, borderRadius: 8, cursor: 'pointer', border: '1px solid #c8a200', background: 'transparent', color: '#d4b106', fontSize: 14 }
+        var isFlash = flashKey === 'dsh'
+        var active = !eq && known
         return React.createElement('div', { style: { flex: 1, textAlign: 'center', minWidth: 0 } },
           React.createElement('div', { style: { fontSize: 12, opacity: .5, marginBottom: 4, whiteSpace: 'nowrap' } }, label),
           React.createElement('button', {
             type: 'button',
-            disabled: eq || !known,
-            style: Object.assign({}, yellow ? yellowStyle : btnStyle(!eq && known), {
-              width: '100%', fontWeight: eq ? 400 : 600,
-              opacity: eq ? .4 : 1, padding: '4px 2px', fontSize: 13,
+            disabled: !active,
+            style: Object.assign({}, btnStyle(active), {
+              width: '100%', fontWeight: active ? 600 : 400, color: active ? '#4dd0e1' : 'var(--dsw-alias-label-tertiary,#6a6a78)',
+              borderColor: active ? '#4dd0e1' : 'var(--dsw-alias-border-l2,#2a2a36)',
+              opacity: active ? 1 : .45, padding: '4px 2px', fontSize: 13, textDecoration: 'underline',
             }),
             onClick: function () {
-              if (kind === 'dsh') {
-                // 环境未知 → 黄: 复制 npm 安装命令
-                if (v.env === 'unknown') { copyCmd(v.npmCmd, kind); return }
-                // 环境可检测 → 蓝: 点击即更新, 下面绘制更新终端(SSE 流式)
-                startDshUpdate()
-                return
+              // 点击 = 复制更新命令(与引导页青色按钮一致)
+              copyText(DSH_UPDATE_CMD, 'dsh')
+            },
+            onContextMenu: function (e) {
+              // 长按 = 拉起 Termux 执行更新(仅壳内; Web 无桥则复制)
+              if (e) e.preventDefault()
+              if (IS_DSHM) {
+                try { AndroidShell.runInTermux('dsh-update') } catch (er) { copyText(DSH_UPDATE_CMD, 'dsh') }
+              } else {
+                copyText(DSH_UPDATE_CMD, 'dsh')
               }
+            },
+          }, isFlash ? '已复制 ✓' : rem),
+          React.createElement('div', { style: { fontSize: 11, opacity: .4, marginTop: 4 } }, '当前 ' + cur),
+        )
+      }
+      // dsh-mobile 条目: 灰(无新版) / 点击下载(App 内下载安装, Web 直接下载)
+      var apkBtn = function (label, cur, rem) {
+        var eq = same(cur, rem)
+        var known = cur !== '?' && rem !== '?'
+        var isFlash = flashKey === 'dshm'
+        var active = !eq && known
+        return React.createElement('div', { style: { flex: 1, textAlign: 'center', minWidth: 0 } },
+          React.createElement('div', { style: { fontSize: 12, opacity: .5, marginBottom: 4, whiteSpace: 'nowrap' } }, label),
+          React.createElement('button', {
+            type: 'button',
+            disabled: !active,
+            style: Object.assign({}, btnStyle(active), {
+              width: '100%', fontWeight: active ? 600 : 400, opacity: active ? 1 : .45, padding: '4px 2px', fontSize: 13,
+            }),
+            onClick: function () {
               var apkUrl = 'https://raw.githubusercontent.com/knGear/dsh-mobile/main/releases/dsh-mobile-v' + rem + '.apk'
               if (IS_DSHM) {
                 try { AndroidShell.updateApp(apkUrl) } catch (e) { window.open(apkUrl, '_blank') }
               } else {
                 window.open(apkUrl, '_blank')
               }
-              // 就地反馈: 变"已下载 ✓"后 1.2s 恢复远程版本号
-              setFlash(kind)
+              setFlash('dshm')
               setTimeout(function () { setFlash(null) }, 1200)
             },
-          }, isFlash ? (kind === 'dsh' ? '已复制 ✓' : '已下载 ✓') : rem),
+          }, isFlash ? '已下载 ✓' : rem),
           React.createElement('div', { style: { fontSize: 11, opacity: .4, marginTop: 4 } }, '当前 ' + cur),
         )
       }
-      // 更新终端: SSE 流式显示 dsh 更新输出(点击蓝色 dsh 按钮后出现)
-      var termSt = React.useState(null) // {lines:[], running, done, code}
-      var term = termSt[0]; var setTerm = termSt[1]
-      var pollRef = React.useRef(null)
-      // 防自杀: 点击 → POST 启动 detached 独立进程(输出写日志) → 轮询日志流式显示
-      var startDshUpdate = function () {
-        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
-        setTerm({ lines: ['开始更新 dsh(独立进程, 不占用本窗口)…'], running: true, done: false, code: null })
-        var offset = 0
-        fetch('/api/dsh-update', { method: 'POST' }).then(function (r) { return r.json() }).then(function (d) {
-          if (d && d.ok === false) {
-            setTerm(function (t) { return { lines: (t.lines || []).concat(d.error || '启动失败'), running: false, done: true, code: -1 } })
-            return
-          }
-          // 轮询日志增量
-          pollRef.current = setInterval(function () {
-            fetch('/api/dsh-update-log?offset=' + offset).then(function (r) { return r.json() }).then(function (j) {
-              if (!j) return
-              offset = j.offset || offset
-              var newLines = (j.log || '').split('\n').filter(function (s) { return s.length > 0 })
-              if (newLines.length) setTerm(function (t) { return { lines: (t.lines || []).concat(newLines), running: true, done: false, code: null } })
-              // 检测完成标记(脚本结尾写 "更新结束 exit=N")
-              var doneM = /更新结束 exit=(\d+)/.exec(j.log || '')
-              if (doneM) {
-                clearInterval(pollRef.current); pollRef.current = null
-                setTerm(function (t) { return { lines: t.lines, running: false, done: true, code: parseInt(doneM[1], 10) } })
-              }
-            }).catch(function () {})
-          }, 1500)
-        }).catch(function (e) {
-          setTerm(function (t) { return { lines: (t.lines || []).concat('无法连接: ' + e.message), running: false, done: true, code: -1 } })
-        })
-      }
       return React.createElement('div', null,
         React.createElement('div', { style: { display: 'flex', gap: 8, marginTop: 10 } },
-          btn('dsh', v.dshCur, v.dshRem, 'dsh'),
-          btn('dshm-ui 插件', v.dshmUiCur, v.dshmUiRem, 'dshm'),
-          btn('dsh-mobile 壳', v.dshmShellCur, v.dshmShellRem, 'dshm'),
+          dshBtn('dsh', v.dshCur, v.dshRem),
+          apkBtn('dsh-mobile 壳', v.dshmShellCur, v.dshmShellRem),
         ),
-        // 更新终端(dsh 更新进行时显示, 等宽字体滚动, 右上角复制)
-        term ? React.createElement('div', { style: { position: 'relative', marginTop: 10 } },
-          React.createElement('button', {
-            type: 'button',
-            style: { position: 'absolute', top: 4, right: 4, zIndex: 1, border: '1px solid var(--dsw-alias-border-l2,#2a2a36)', background: '#1a1a22', color: 'var(--dsw-alias-label-secondary,#a0a0b0)', borderRadius: 5, padding: '2px 8px', fontSize: 11, cursor: 'pointer' },
-            onClick: function () {
-              var txt = (term.lines || []).join('\n')
-              try {
-                if (typeof AndroidShell !== 'undefined' && AndroidShell.copyText) AndroidShell.copyText(txt)
-                else if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt)
-              } catch (e) {}
-              setFlash('dsh')
-              setTimeout(function () { setFlash(null) }, 1200)
-            },
-          }, '复制'),
-          React.createElement('div', {
-            style: { border: '1px solid var(--dsw-alias-border-l2,#2a2a36)', borderRadius: 8, background: '#0d0d10', padding: '8px 8px 8px 30px', maxHeight: 160, overflowY: 'auto', fontFamily: 'monospace', fontSize: 11, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-all' },
-          },
-            term.lines.map(function (l, i) { return React.createElement('div', { key: i, style: { color: '#9fe8a0' } }, l) }),
-            term.running ? React.createElement('div', { style: { color: '#8a8a99' } }, '…') : null,
-            term.done ? React.createElement('div', { style: { color: term.code === 0 ? '#4dd0e1' : '#ff6b6b', marginTop: 4, fontWeight: 600 } },
-              term.code === 0 ? '✓ 更新完成，请重启 dsh web 生效' : '✗ 更新失败(码 ' + term.code + ')，可复制 npm 命令手动更新',
-            ) : null,
-          ),
-        ) : null,
         React.createElement('div', { style: { fontSize: 11, opacity: .4, marginTop: 6, textAlign: 'right' } }, v.ts),
       )
     }
