@@ -3,7 +3,7 @@
 // 职责边界: 本插件只做移动适配(原版 UI 拉起/版本检查/目录选择器/session log 开关)。
 //           无任何 restart/reload 能力(危险, 调用不准确会杀 dsh; 属 task 插件职责)。
 import { createRequire } from 'node:module'
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { readdirSync, statSync, mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
@@ -61,6 +61,49 @@ function apply(ctx) {
         res.writeHead(500, { 'content-type': 'application/json' })
         res.end(JSON.stringify({ dsh: '?', dshmUi: '?', dshmShell: '?', env: 'unknown', message: String(error) }))
       }
+    },
+  })
+
+
+  // dsh 应用内更新: 环境分派更新命令, SSE 流式回传输出(前端绘制更新终端)
+  // termux-native → 安装脚本(含修补); npm(proot/linux/wsl) → npm i -g
+  // 环境 unknown → 返回 400, 前端兜底复制 npm 命令
+  function updateCommand(env) {
+    if (env === 'termux-native') {
+      // Termux 原生: 拉安装脚本跑(幂等 = 更新到最新, 含 6 步修补)
+      const script = process.env.HOME + '/dsh-install-termux.sh'
+      if (existsSync(script)) return { cmd: 'bash', args: [script] }
+      return { cmd: 'bash', args: ['-c', 'curl -fsSL https://raw.githubusercontent.com/knGear/dsh-mobile/main/scripts/dsh-install-termux.sh -o $HOME/dsh-install-termux.sh && bash $HOME/dsh-install-termux.sh'] }
+    }
+    if (env === 'npm') return { cmd: 'npm', args: ['i', '-g', '@deepseek-ai/dsh'] }
+    return null
+  }
+  ctx.webServer.register({
+    kind: 'exact',
+    path: '/api/dsh-update',
+    handler: (req, res) => {
+      const env = detectEnv()
+      const plan = updateCommand(env)
+      if (!plan) {
+        res.writeHead(400, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ ok: false, error: '环境未知, 请复制 npm 命令手动更新', npmCmd: 'npm i -g @deepseek-ai/dsh' }))
+        return
+      }
+      res.writeHead(200, {
+        'content-type': 'text/event-stream',
+        'cache-control': 'no-cache',
+        'connection': 'keep-alive',
+      })
+      res.write(': dsh update started\n\n')
+      const child = spawn(plan.cmd, plan.args, { stdio: ['ignore', 'pipe', 'pipe'] })
+      const send = (obj) => { try { res.write('data: ' + JSON.stringify(obj) + '\n\n') } catch (e) {} }
+      child.stdout.on('data', (d) => send({ line: String(d) }))
+      child.stderr.on('data', (d) => send({ line: String(d) }))
+      child.on('close', (code) => {
+        send({ done: true, code: code || 0 })
+        try { res.end() } catch (e) {}
+      })
+      req.on('close', () => { try { child.kill() } catch (e) {} })
     },
   })
 

@@ -89,26 +89,25 @@ window.__ModuleLoader__.load({
         var eq = same(cur, rem)
         var known = cur !== '?' && rem !== '?'
         var isFlash = flashKey === kind
-        // dsh 按钮三态: 灰(同版/离线/未知) / 蓝(有新版+环境可检) / 黄(有新版+环境未知→复制 npm 命令)
+        // dsh 按钮三态: 灰(同版/离线/拉取失败) / 蓝(有新版+环境可检测→点击即更新+终端) / 黄(有新版+环境未知→复制 npm 命令, 普通黄)
         var yellow = kind === 'dsh' && !eq && known && v.env === 'unknown'
         var blue = kind === 'dsh' && !eq && known && v.env !== 'unknown'
-        var style = btnStyle(!eq && known)
-        if (yellow) style = { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: 38, borderRadius: 8, cursor: 'pointer', border: '1px solid rgba(240,180,60,.5)', background: 'rgba(240,180,60,.12)', color: '#f0b43c', fontSize: 14 }
+        var yellowStyle = { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: 38, borderRadius: 8, cursor: 'pointer', border: '1px solid #c8a200', background: 'transparent', color: '#d4b106', fontSize: 14 }
         return React.createElement('div', { style: { flex: 1, textAlign: 'center', minWidth: 0 } },
           React.createElement('div', { style: { fontSize: 12, opacity: .5, marginBottom: 4, whiteSpace: 'nowrap' } }, label),
           React.createElement('button', {
             type: 'button',
             disabled: eq || !known,
-            style: Object.assign({}, yellow ? style : btnStyle(!eq && known), {
+            style: Object.assign({}, yellow ? yellowStyle : btnStyle(!eq && known), {
               width: '100%', fontWeight: eq ? 400 : 600,
               opacity: eq ? .4 : 1, padding: '4px 2px', fontSize: 13,
             }),
             onClick: function () {
               if (kind === 'dsh') {
-                // 环境未知 → 黄色按钮: 复制 npm 安装命令
+                // 环境未知 → 黄: 复制 npm 安装命令
                 if (v.env === 'unknown') { copyCmd(v.npmCmd, kind); return }
-                // 环境可检测 → 蓝色按钮: 暂引导(应用内更新端点后续接)
-                go('dshm://first')
+                // 环境可检测 → 蓝: 点击即更新, 下面绘制更新终端(SSE 流式)
+                startDshUpdate()
                 return
               }
               var apkUrl = 'https://raw.githubusercontent.com/knGear/dsh-mobile/main/releases/dsh-mobile-v' + rem + '.apk'
@@ -125,12 +124,50 @@ window.__ModuleLoader__.load({
           React.createElement('div', { style: { fontSize: 11, opacity: .4, marginTop: 4 } }, '当前 ' + cur),
         )
       }
+      // 更新终端: SSE 流式显示 dsh 更新输出(点击蓝色 dsh 按钮后出现)
+      var termSt = React.useState(null) // {lines:[], running, done, code}
+      var term = termSt[0]; var setTerm = termSt[1]
+      var esRef = React.useRef(null)
+      var startDshUpdate = function () {
+        if (esRef.current) { try { esRef.current.close() } catch (e) {} }
+        setTerm({ lines: ['开始更新 dsh…'], running: true, done: false, code: null })
+        try {
+          var es = new EventSource('/api/dsh-update')
+          esRef.current = es
+          es.addEventListener('message', function (e) {
+            try {
+              var d = JSON.parse(e.data)
+              if (d.line) setTerm(function (t) { return { lines: (t.lines || []).concat(d.line), running: t.running, done: t.done, code: t.code } })
+              if (d.done) {
+                es.close(); esRef.current = null
+                setTerm(function (t) { return { lines: t.lines, running: false, done: true, code: d.code } })
+              }
+            } catch (er) {}
+          })
+          es.addEventListener('error', function () {
+            es.close(); esRef.current = null
+            setTerm(function (t) { return { lines: (t.lines || []).concat('连接中断'), running: false, done: true, code: -1 } })
+          })
+        } catch (e) {
+          setTerm(function (t) { return { lines: (t.lines || []).concat('无法连接: ' + e.message), running: false, done: true, code: -1 } })
+        }
+      }
       return React.createElement('div', null,
         React.createElement('div', { style: { display: 'flex', gap: 8, marginTop: 10 } },
           btn('dsh', v.dshCur, v.dshRem, 'dsh'),
           btn('dshm-ui 插件', v.dshmUiCur, v.dshmUiRem, 'dshm'),
           btn('dsh-mobile 壳', v.dshmShellCur, v.dshmShellRem, 'dshm'),
         ),
+        // 更新终端(dsh 更新进行时显示, 等宽字体滚动)
+        term ? React.createElement('div', {
+          style: { marginTop: 10, border: '1px solid var(--dsw-alias-border-l2,#2a2a36)', borderRadius: 8, background: '#0d0d10', padding: 8, maxHeight: 160, overflowY: 'auto', fontFamily: 'monospace', fontSize: 11, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-all' },
+        },
+          term.lines.map(function (l, i) { return React.createElement('div', { key: i, style: { color: '#9fe8a0' } }, l) }),
+          term.running ? React.createElement('div', { style: { color: '#8a8a99' } }, '…') : null,
+          term.done ? React.createElement('div', { style: { color: term.code === 0 ? '#4dd0e1' : '#ff6b6b', marginTop: 4, fontWeight: 600 } },
+            term.code === 0 ? '✓ 更新完成，请重启 dsh web 生效' : '✗ 更新失败(码 ' + term.code + ')，可复制 npm 命令手动更新',
+          ) : null,
+        ) : null,
         React.createElement('div', { style: { fontSize: 11, opacity: .4, marginTop: 6, textAlign: 'right' } }, v.ts),
       )
     }
