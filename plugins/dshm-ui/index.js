@@ -30,7 +30,17 @@ function apply(ctx) {
     },
   })
 
-  // 当前版本: dsh(读已装 package.json) + dshmUi(本插件自身 package.json) + dshmShell(壳, 由 UA 经 query 传入)
+  // 环境检测: termux-native(PREFIX 特征, 可靠) / npm(dsh 全局路径, proot+linux+wsl 通用) / unknown
+  // proot/Linux/WSL 更新命令都是 npm, 只需区分 Termux 原生 vs 其他
+  function detectEnv() {
+    try {
+      if (process.env.PREFIX && existsSync(process.env.PREFIX)) return 'termux-native'
+      const dshPath = require.resolve('@deepseek-ai/dsh/package.json')
+      if (dshPath.includes('/usr/local/lib/node_modules/') || dshPath.includes('/usr/lib/node_modules/')) return 'npm'
+      return 'unknown'
+    } catch (e) { return 'unknown' }
+  }
+  // 当前版本: dsh(读已装 package.json) + dshmUi(本插件自身 package.json) + dshmShell(壳, 由 UA 经 query 传入) + env
   ctx.webServer.register({
     kind: 'exact',
     path: '/api/dshm-versions',
@@ -41,11 +51,15 @@ function apply(ctx) {
         let uiVer = '?'
         try { uiVer = require('./package.json').version || '?' } catch (e) { uiVer = '?' }
         const shellVer = u.searchParams.get('shell') || '?'
+        const env = detectEnv()
         res.writeHead(200, { 'content-type': 'application/json' })
-        res.end(JSON.stringify({ dsh: pkg.version || '?', dshmUi: uiVer, dshmShell: shellVer }))
+        res.end(JSON.stringify({
+          dsh: pkg.version || '?', dshmUi: uiVer, dshmShell: shellVer, env,
+          npmCmd: 'npm i -g @deepseek-ai/dsh',
+        }))
       } catch (error) {
         res.writeHead(500, { 'content-type': 'application/json' })
-        res.end(JSON.stringify({ dsh: '?', dshmUi: '?', dshmShell: '?', message: String(error) }))
+        res.end(JSON.stringify({ dsh: '?', dshmUi: '?', dshmShell: '?', env: 'unknown', message: String(error) }))
       }
     },
   })

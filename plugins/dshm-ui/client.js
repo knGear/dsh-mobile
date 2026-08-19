@@ -48,14 +48,14 @@ window.__ModuleLoader__.load({
     // 远程版本: dsh 走 npm registry; dshm-ui 走 dshm-ver; dsh-mobile 走 dsh-mobile-ver
     function VersionCheck() {
       var React = require('react')
-      var st = React.useState({ dshCur: '?', dshmUiCur: '?', dshmShellCur: '?', dshRem: '?', dshmUiRem: '?', dshmShellRem: '?', ts: '' })
+      var st = React.useState({ dshCur: '?', dshmUiCur: '?', dshmShellCur: '?', dshRem: '?', dshmUiRem: '?', dshmShellRem: '?', env: 'unknown', npmCmd: 'npm i -g @deepseek-ai/dsh', ts: '' })
       var v = st[0]; var setV = st[1]
       React.useEffect(function () {
         var m = /DSHM\/([\d.]+)/.exec(navigator.userAgent)
         var shell = m ? m[1] : ''
         fetch('/api/dshm-versions?shell=' + encodeURIComponent(shell)).then(function (r) { return r.json() }).then(function (j) {
           setV(function (o) { return Object.assign({}, o, {
-            dshCur: j.dsh || '?', dshmUiCur: j.dshmUi || '?', dshmShellCur: j.dshmShell || '?', ts: now(),
+            dshCur: j.dsh || '?', dshmUiCur: j.dshmUi || '?', dshmShellCur: j.dshmShell || '?', env: j.env || 'unknown', npmCmd: j.npmCmd || 'npm i -g @deepseek-ai/dsh', ts: now(),
           }) })
         }).catch(function () {})
         fetch('https://registry.npmjs.org/@deepseek-ai/dsh/latest').then(function (r) { return r.json() }).then(function (j) {
@@ -76,22 +76,41 @@ window.__ModuleLoader__.load({
       // 就地反馈(引导页 flash 同款): 点击更新后按钮变"已下载 ✓", 1.2s 恢复
       var fl = React.useState(null)
       var flashKey = fl[0]; var setFlash = fl[1]
+      // 复制命令到剪贴板(黄色按钮兜底: 环境未知时复制 npm 安装命令)
+      var copyCmd = function (text, kind) {
+        try {
+          if (typeof AndroidShell !== 'undefined' && AndroidShell.copyText) AndroidShell.copyText(text)
+          else if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text)
+        } catch (e) {}
+        setFlash(kind)
+        setTimeout(function () { setFlash(null) }, 1200)
+      }
       var btn = function (label, cur, rem, kind) {
         var eq = same(cur, rem)
         var known = cur !== '?' && rem !== '?'
         var isFlash = flashKey === kind
+        // dsh 按钮三态: 灰(同版/离线/未知) / 蓝(有新版+环境可检) / 黄(有新版+环境未知→复制 npm 命令)
+        var yellow = kind === 'dsh' && !eq && known && v.env === 'unknown'
+        var blue = kind === 'dsh' && !eq && known && v.env !== 'unknown'
+        var style = btnStyle(!eq && known)
+        if (yellow) style = { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: 38, borderRadius: 8, cursor: 'pointer', border: '1px solid rgba(240,180,60,.5)', background: 'rgba(240,180,60,.12)', color: '#f0b43c', fontSize: 14 }
         return React.createElement('div', { style: { flex: 1, textAlign: 'center', minWidth: 0 } },
           React.createElement('div', { style: { fontSize: 12, opacity: .5, marginBottom: 4, whiteSpace: 'nowrap' } }, label),
           React.createElement('button', {
             type: 'button',
             disabled: eq || !known,
-            style: Object.assign({}, btnStyle(!eq && known), {
+            style: Object.assign({}, yellow ? style : btnStyle(!eq && known), {
               width: '100%', fontWeight: eq ? 400 : 600,
               opacity: eq ? .4 : 1, padding: '4px 2px', fontSize: 13,
             }),
             onClick: function () {
-              // dsh-mobile 更新: App 内下载到专属目录后拉起安装管理器; Web 直接下载
-              if (kind === 'dsh') { go('dshm://first'); return }
+              if (kind === 'dsh') {
+                // 环境未知 → 黄色按钮: 复制 npm 安装命令
+                if (v.env === 'unknown') { copyCmd(v.npmCmd, kind); return }
+                // 环境可检测 → 蓝色按钮: 暂引导(应用内更新端点后续接)
+                go('dshm://first')
+                return
+              }
               var apkUrl = 'https://raw.githubusercontent.com/knGear/dsh-mobile/main/releases/dsh-mobile-v' + rem + '.apk'
               if (IS_DSHM) {
                 try { AndroidShell.updateApp(apkUrl) } catch (e) { window.open(apkUrl, '_blank') }
@@ -102,7 +121,7 @@ window.__ModuleLoader__.load({
               setFlash(kind)
               setTimeout(function () { setFlash(null) }, 1200)
             },
-          }, isFlash ? '已下载 ✓' : rem),
+          }, isFlash ? (kind === 'dsh' ? '已复制 ✓' : '已下载 ✓') : rem),
           React.createElement('div', { style: { fontSize: 11, opacity: .4, marginTop: 4 } }, '当前 ' + cur),
         )
       }
