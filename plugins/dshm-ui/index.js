@@ -78,34 +78,74 @@ function apply(ctx) {
     if (env === 'npm') return { cmd: 'npm', args: ['i', '-g', '@deepseek-ai/dsh'] }
     return null
   }
+  // dsh 应用内更新(防自杀设计): 点击 → detached 独立进程跑更新, 输出写日志文件,
+  // dsh 进程只负责"启动 + 读日志", 更新进程完全脱离 dsh 存活(dsh 崩/重启不影响它)。
+  // termux-native → 快速更新脚本; npm(proot/linux/wsl) → npm i -g; unknown → 400 复制命令
+  const UPDATE_LOG = (process.env.HOME || '/data/data/com.termux/files/home') + '/.cache/dsh-update.log'
+  let updatePid = 0
   ctx.webServer.register({
     kind: 'exact',
     path: '/api/dsh-update',
     handler: (req, res) => {
-      const env = detectEnv()
-      const plan = updateCommand(env)
-      if (!plan) {
-        res.writeHead(400, { 'content-type': 'application/json' })
-        res.end(JSON.stringify({ ok: false, error: '环境未知, 请复制 npm 命令手动更新', npmCmd: 'npm i -g @deepseek-ai/dsh' }))
-        return
+      try {
+        if (updatePid) {
+          // 已在跑
+          res.writeHead(200, { 'content-type': 'application/json' })
+          res.end(JSON.stringify({ ok: true, running: true, pid: updatePid }))
+          return
+        }
+        const env = detectEnv()
+        const plan = updateCommand(env)
+        if (!plan) {
+          res.writeHead(400, { 'content-type': 'application/json' })
+          res.end(JSON.stringify({ ok: false, error: '环境未知, 请复制 npm 命令手动更新', npmCmd: 'npm i -g @deepseek-ai/dsh' }))
+          return
+        }
+        // detached: 独立会话, 输出重定向日志文件, unref 脱离 dsh 生命周期
+        const mk = 'mkdir -p ' + (process.env.HOME || '') + '/.cache; echo "=== dsh 更新开始 $(date) ===" > ' + UPDATE_LOG
+        const child = spawn('bash', ['-c', mk + '; ' + plan.cmd + ' ' + plan.args.join(' ') + ' >> ' + UPDATE_LOG + ' 2>&1; echo "=== 更新结束 exit=$? $(date) ===" >> ' + UPDATE_LOG], {
+          detached: true,
+          stdio: 'ignore',
+          cwd: process.env.HOME || '/',
+        })
+        child.unref()
+        updatePid = child.pid || 0
+        res.writeHead(200, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ ok: true, running: true, pid: updatePid }))
+      } catch (error) {
+        res.writeHead(500, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ ok: false, error: String(error) }))
       }
-      res.writeHead(200, {
-        'content-type': 'text/event-stream',
-        'cache-control': 'no-cache',
-        'connection': 'keep-alive',
-      })
-      res.write(': dsh update started\n\n')
-      const child = spawn(plan.cmd, plan.args, { stdio: ['ignore', 'pipe', 'pipe'] })
-      const send = (obj) => { try { res.write('data: ' + JSON.stringify(obj) + '\n\n') } catch (e) {} }
-      child.stdout.on('data', (d) => send({ line: String(d) }))
-      child.stderr.on('data', (d) => send({ line: String(d) }))
-      child.on('close', (code) => {
-        send({ done: true, code: code || 0 })
-        try { res.end() } catch (e) {}
-      })
-      req.on('close', () => { try { child.kill() } catch (e) {} })
     },
   })
+  // 读更新日志(增量): ?offset=N → { log: 增量文本, offset, running, exit }
+  // 前端轮询此端点流式显示终端; 检测到 "更新结束" 行判断完成
+  ctx.webServer.register({
+    kind: 'exact',
+    path: '/api/dsh-update-log',
+    handler: (req, res) => {
+      try {
+        const u = new URL(req.url, 'http://x')
+        const offset = parseInt(u.searchParams.get('offset') || '0', 10) || 0
+        let txt = ''
+        let size = 0
+        try {
+          const st = statSync(UPDATE_LOG)
+          size = st.size
+          if (size > offset) {
+            txt = readFileSync(UPDATE_LOG, { encoding: 'utf8', flag: 'r' }).slice(Math.max(0, offset))
+          }
+        } catch (e) {}
+        const running = updatePid > 0
+        res.writeHead(200, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ log: txt, offset: size, running }))
+      } catch (error) {
+        res.writeHead(500, { 'content-type': 'application/json' })
+        res.end(JSON.stringify({ error: String(error) }))
+      }
+    },
+  })
+
 
   // 目录列表(移动版工作区选择器用, 走 host fs 绕开 connection inject)
   // 返回 parent(上一层路径) + hasRoot(能否列 / → root 权限)

@@ -127,30 +127,35 @@ window.__ModuleLoader__.load({
       // 更新终端: SSE 流式显示 dsh 更新输出(点击蓝色 dsh 按钮后出现)
       var termSt = React.useState(null) // {lines:[], running, done, code}
       var term = termSt[0]; var setTerm = termSt[1]
-      var esRef = React.useRef(null)
+      var pollRef = React.useRef(null)
+      // 防自杀: 点击 → POST 启动 detached 独立进程(输出写日志) → 轮询日志流式显示
       var startDshUpdate = function () {
-        if (esRef.current) { try { esRef.current.close() } catch (e) {} }
-        setTerm({ lines: ['开始更新 dsh…'], running: true, done: false, code: null })
-        try {
-          var es = new EventSource('/api/dsh-update')
-          esRef.current = es
-          es.addEventListener('message', function (e) {
-            try {
-              var d = JSON.parse(e.data)
-              if (d.line) setTerm(function (t) { return { lines: (t.lines || []).concat(d.line), running: t.running, done: t.done, code: t.code } })
-              if (d.done) {
-                es.close(); esRef.current = null
-                setTerm(function (t) { return { lines: t.lines, running: false, done: true, code: d.code } })
+        if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
+        setTerm({ lines: ['开始更新 dsh(独立进程, 不占用本窗口)…'], running: true, done: false, code: null })
+        var offset = 0
+        fetch('/api/dsh-update', { method: 'POST' }).then(function (r) { return r.json() }).then(function (d) {
+          if (d && d.ok === false) {
+            setTerm(function (t) { return { lines: (t.lines || []).concat(d.error || '启动失败'), running: false, done: true, code: -1 } })
+            return
+          }
+          // 轮询日志增量
+          pollRef.current = setInterval(function () {
+            fetch('/api/dsh-update-log?offset=' + offset).then(function (r) { return r.json() }).then(function (j) {
+              if (!j) return
+              offset = j.offset || offset
+              var newLines = (j.log || '').split('\n').filter(function (s) { return s.length > 0 })
+              if (newLines.length) setTerm(function (t) { return { lines: (t.lines || []).concat(newLines), running: true, done: false, code: null } })
+              // 检测完成标记(脚本结尾写 "更新结束 exit=N")
+              var doneM = /更新结束 exit=(\d+)/.exec(j.log || '')
+              if (doneM) {
+                clearInterval(pollRef.current); pollRef.current = null
+                setTerm(function (t) { return { lines: t.lines, running: false, done: true, code: parseInt(doneM[1], 10) } })
               }
-            } catch (er) {}
-          })
-          es.addEventListener('error', function () {
-            es.close(); esRef.current = null
-            setTerm(function (t) { return { lines: (t.lines || []).concat('连接中断'), running: false, done: true, code: -1 } })
-          })
-        } catch (e) {
+            }).catch(function () {})
+          }, 1500)
+        }).catch(function (e) {
           setTerm(function (t) { return { lines: (t.lines || []).concat('无法连接: ' + e.message), running: false, done: true, code: -1 } })
-        }
+        })
       }
       return React.createElement('div', null,
         React.createElement('div', { style: { display: 'flex', gap: 8, marginTop: 10 } },
