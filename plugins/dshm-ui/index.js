@@ -70,10 +70,10 @@ function apply(ctx) {
   // 环境 unknown → 返回 400, 前端兜底复制 npm 命令
   function updateCommand(env) {
     if (env === 'termux-native') {
-      // Termux 原生: 拉安装脚本跑(幂等 = 更新到最新, 含 6 步修补)
-      const script = process.env.HOME + '/dsh-install-termux.sh'
+      // Termux 原生: 快速更新脚本(仅 npm+修补+wrapper, 跳过 pkg/工具链/插件) — 比完整安装脚本快
+      const script = process.env.HOME + '/dsh-update-termux.sh'
       if (existsSync(script)) return { cmd: 'bash', args: [script] }
-      return { cmd: 'bash', args: ['-c', 'curl -fsSL https://raw.githubusercontent.com/knGear/dsh-mobile/main/scripts/dsh-install-termux.sh -o $HOME/dsh-install-termux.sh && bash $HOME/dsh-install-termux.sh'] }
+      return { cmd: 'bash', args: ['-c', 'curl -fsSL https://raw.githubusercontent.com/knGear/dsh-mobile/main/scripts/dsh-update-termux.sh -o $HOME/dsh-update-termux.sh && bash $HOME/dsh-update-termux.sh'] }
     }
     if (env === 'npm') return { cmd: 'npm', args: ['i', '-g', '@deepseek-ai/dsh'] }
     return null

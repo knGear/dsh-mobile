@@ -158,15 +158,30 @@ window.__ModuleLoader__.load({
           btn('dshm-ui 插件', v.dshmUiCur, v.dshmUiRem, 'dshm'),
           btn('dsh-mobile 壳', v.dshmShellCur, v.dshmShellRem, 'dshm'),
         ),
-        // 更新终端(dsh 更新进行时显示, 等宽字体滚动)
-        term ? React.createElement('div', {
-          style: { marginTop: 10, border: '1px solid var(--dsw-alias-border-l2,#2a2a36)', borderRadius: 8, background: '#0d0d10', padding: 8, maxHeight: 160, overflowY: 'auto', fontFamily: 'monospace', fontSize: 11, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-all' },
-        },
-          term.lines.map(function (l, i) { return React.createElement('div', { key: i, style: { color: '#9fe8a0' } }, l) }),
-          term.running ? React.createElement('div', { style: { color: '#8a8a99' } }, '…') : null,
-          term.done ? React.createElement('div', { style: { color: term.code === 0 ? '#4dd0e1' : '#ff6b6b', marginTop: 4, fontWeight: 600 } },
-            term.code === 0 ? '✓ 更新完成，请重启 dsh web 生效' : '✗ 更新失败(码 ' + term.code + ')，可复制 npm 命令手动更新',
-          ) : null,
+        // 更新终端(dsh 更新进行时显示, 等宽字体滚动, 右上角复制)
+        term ? React.createElement('div', { style: { position: 'relative', marginTop: 10 } },
+          React.createElement('button', {
+            type: 'button',
+            style: { position: 'absolute', top: 4, right: 4, zIndex: 1, border: '1px solid var(--dsw-alias-border-l2,#2a2a36)', background: '#1a1a22', color: 'var(--dsw-alias-label-secondary,#a0a0b0)', borderRadius: 5, padding: '2px 8px', fontSize: 11, cursor: 'pointer' },
+            onClick: function () {
+              var txt = (term.lines || []).join('\n')
+              try {
+                if (typeof AndroidShell !== 'undefined' && AndroidShell.copyText) AndroidShell.copyText(txt)
+                else if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt)
+              } catch (e) {}
+              setFlash('dsh')
+              setTimeout(function () { setFlash(null) }, 1200)
+            },
+          }, '复制'),
+          React.createElement('div', {
+            style: { border: '1px solid var(--dsw-alias-border-l2,#2a2a36)', borderRadius: 8, background: '#0d0d10', padding: '8px 8px 8px 30px', maxHeight: 160, overflowY: 'auto', fontFamily: 'monospace', fontSize: 11, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-all' },
+          },
+            term.lines.map(function (l, i) { return React.createElement('div', { key: i, style: { color: '#9fe8a0' } }, l) }),
+            term.running ? React.createElement('div', { style: { color: '#8a8a99' } }, '…') : null,
+            term.done ? React.createElement('div', { style: { color: term.code === 0 ? '#4dd0e1' : '#ff6b6b', marginTop: 4, fontWeight: 600 } },
+              term.code === 0 ? '✓ 更新完成，请重启 dsh web 生效' : '✗ 更新失败(码 ' + term.code + ')，可复制 npm 命令手动更新',
+            ) : null,
+          ),
         ) : null,
         React.createElement('div', { style: { fontSize: 11, opacity: .4, marginTop: 6, textAlign: 'right' } }, v.ts),
       )
