@@ -155,6 +155,10 @@
     <button class="cy" data-cmd="install-termux">简易重装</button>
     <button class="cy b" data-cmd="dsh-repair">清洁重装</button></p>
 
+  <p class="line"><span data-i="checkUpd">检查更新</span>
+    <button class="cy u" data-cmd="dsh-update">dsh</button>
+    <button class="cy" onclick="downloadApk()">dsh-mobile</button></p>
+
   <div class="repos">
     <button class="ln" onclick="openUrl('https://github.com/knGear/dsh-mobile')" data-i="repo1">dsh-mobile 仓库</button>
     <button class="ln" onclick="openUrl('https://github.com/deepseek-ai/deepseek-harness')" data-i="repo2">dsh 仓库</button>
@@ -193,6 +197,7 @@ var D = {
     b1: 'Termux（性能）', or: '或', b2: 'Termux-Ubuntu（兼容）',
     l3a: '已安装？在 termux 运行', l3b: '或连接到', l4: '长按一键运行需先开启',
     trouble: '遇到故障？', fx1: '浏览器原版', fx2: '原版验证安装', fx3: '简易重装', fx4: '清洁重装',
+    checkUpd: '检查更新',
     connect: '连接', repo1: 'dsh-mobile 仓库', repo2: 'dsh 仓库',
     hist: '历史连接', hint: '命令到 Termux 运行，即可长按青色按钮一键运行',
     cap: '点击复制', copied: '已复制 ✓'
@@ -202,6 +207,7 @@ var D = {
     b1: 'Termux (Perf)', or: 'or', b2: 'Termux-Ubuntu (Compat)',
     l3a: 'Already installed? Run', l3b: 'in Termux, or connect to', l4: 'Enable first for one-tap run:',
     trouble: 'Fault?', fx1: 'Original in browser', fx2: 'Verify-install (pristine)', fx3: 'Quick reinstall', fx4: 'Clean reinstall',
+    checkUpd: 'Check updates',
     connect: 'Connect', repo1: 'dsh-mobile repo', repo2: 'dsh repo',
     hint: ' the command and run it in Termux to enable long-press one-tap run',
     cap: 'Tap to copy', copied: 'Copied ✓'
@@ -247,6 +253,19 @@ function openInBrowser(u) { try { AndroidShell.openInBrowser(u); } catch (e) {} 
 function showCompare() { document.getElementById('compare').classList.add('show') }
 function hideCompare() { document.getElementById('compare').classList.remove('show') }
 function dlTermux() { try { AndroidShell.openTermuxDownload(); } catch (e) {} }
+// 检查更新-壳: 拉 dsh-mobile-ver 拿最新版号 → App 内下载安装 / Web 直接下载
+function downloadApk() {
+  var done = function (ver) {
+    var url = 'https://raw.githubusercontent.com/knGear/dsh-mobile/main/releases/dsh-mobile-v' + ver + '.apk'
+    try {
+      if (typeof AndroidShell !== 'undefined' && AndroidShell.updateApp) { AndroidShell.updateApp(url); return }
+    } catch (e) {}
+    window.open(url, '_blank')
+  }
+  fetch('https://raw.githubusercontent.com/knGear/dsh-mobile/main/dsh-mobile-ver').then(function (r) { return r.text() })
+    .then(function (t) { done((t || '0.054').trim()) })
+    .catch(function () { done('0.054') })
+}
 
 // 输入规范化: 空=默认 / 纯端口 / :端口 / 纯host补3080 / 带端口原样; 回填后连接
 function doConnect() {
