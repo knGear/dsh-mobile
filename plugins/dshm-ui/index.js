@@ -1,16 +1,16 @@
 // dshm-ui host 侧 — 移动设置面板所需端点(仅壳内使用, 不影响 dsh 本体行为)
 //
-// 职责边界: 本插件只做移动适配(原版 UI 拉起/版本检查/目录选择器/session log 开关)。
-//           无任何 restart/reload 能力(危险, 调用不准确会杀 dsh; 属 task 插件职责)。
-import { createRequire } from 'node:module'
-import { spawn, spawnSync } from 'node:child_process'
-import { readdirSync, statSync, mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
+// 职责边界: 本插件只做移动适配(移动设置面板/目录选择器/session log 开关)。
+//           无任何 restart/reload/update 能力 —— 在 dsh 内杀进程/跑更新太危险,
+//           维护(启停/更新/修复)全部收敛到 APK 引导页完成, 只对本机实例负责。
+//           (曾有的 /api/dsh-update、/api/dsh-update-log、/api/dshm-versions 已删)
+import { spawnSync } from 'node:child_process'
+import { readdirSync, statSync, mkdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
 const name = 'dshm-ui'
 const inject = ['webServer', 'loader']
 
-const require = createRequire(import.meta.url)
 const ORIGINAL_URL = 'http://127.0.0.1:3080/?plain=1'
 
 function apply(ctx) {
@@ -29,123 +29,6 @@ function apply(ctx) {
       }
     },
   })
-
-  // 环境检测: termux-native(PREFIX 特征, 可靠) / npm(dsh 全局路径, proot+linux+wsl 通用) / unknown
-  // proot/Linux/WSL 更新命令都是 npm, 只需区分 Termux 原生 vs 其他
-  function detectEnv() {
-    try {
-      if (process.env.PREFIX && existsSync(process.env.PREFIX)) return 'termux-native'
-      const dshPath = require.resolve('@deepseek-ai/dsh/package.json')
-      if (dshPath.includes('/usr/local/lib/node_modules/') || dshPath.includes('/usr/lib/node_modules/')) return 'npm'
-      return 'unknown'
-    } catch (e) { return 'unknown' }
-  }
-  // 当前版本: dsh(读已装 package.json) + dshmUi(本插件自身 package.json) + dshmShell(壳, 由 UA 经 query 传入) + env
-  ctx.webServer.register({
-    kind: 'exact',
-    path: '/api/dshm-versions',
-    handler: (req, res) => {
-      try {
-        const u = new URL(req.url, 'http://x')
-        const pkg = require('@deepseek-ai/dsh/package.json')
-        let uiVer = '?'
-        try { uiVer = require('./package.json').version || '?' } catch (e) { uiVer = '?' }
-        const shellVer = u.searchParams.get('shell') || '?'
-        const env = detectEnv()
-        res.writeHead(200, { 'content-type': 'application/json' })
-        res.end(JSON.stringify({
-          dsh: pkg.version || '?', dshmUi: uiVer, dshmShell: shellVer, env,
-          npmCmd: 'npm i -g @deepseek-ai/dsh',
-        }))
-      } catch (error) {
-        res.writeHead(500, { 'content-type': 'application/json' })
-        res.end(JSON.stringify({ dsh: '?', dshmUi: '?', dshmShell: '?', env: 'unknown', message: String(error) }))
-      }
-    },
-  })
-
-
-  // dsh 应用内更新: 环境分派更新命令, SSE 流式回传输出(前端绘制更新终端)
-  // termux-native → 安装脚本(含修补); npm(proot/linux/wsl) → npm i -g
-  // 环境 unknown → 返回 400, 前端兜底复制 npm 命令
-  function updateCommand(env) {
-    if (env === 'termux-native') {
-      // Termux 原生: 快速更新脚本(仅 npm+修补+wrapper, 跳过 pkg/工具链/插件) — 比完整安装脚本快
-      const script = process.env.HOME + '/dsh-update-termux.sh'
-      if (existsSync(script)) return { cmd: 'bash', args: [script] }
-      return { cmd: 'bash', args: ['-c', 'curl -fsSL https://raw.githubusercontent.com/knGear/dsh-mobile/main/scripts/dsh-update-termux.sh -o $HOME/dsh-update-termux.sh && bash $HOME/dsh-update-termux.sh'] }
-    }
-    if (env === 'npm') return { cmd: 'npm', args: ['i', '-g', '@deepseek-ai/dsh'] }
-    return null
-  }
-  // dsh 应用内更新(防自杀设计): 点击 → detached 独立进程跑更新, 输出写日志文件,
-  // dsh 进程只负责"启动 + 读日志", 更新进程完全脱离 dsh 存活(dsh 崩/重启不影响它)。
-  // termux-native → 快速更新脚本; npm(proot/linux/wsl) → npm i -g; unknown → 400 复制命令
-  const UPDATE_LOG = (process.env.HOME || '/data/data/com.termux/files/home') + '/.cache/dsh-update.log'
-  let updatePid = 0
-  ctx.webServer.register({
-    kind: 'exact',
-    path: '/api/dsh-update',
-    handler: (req, res) => {
-      try {
-        if (updatePid) {
-          // 已在跑
-          res.writeHead(200, { 'content-type': 'application/json' })
-          res.end(JSON.stringify({ ok: true, running: true, pid: updatePid }))
-          return
-        }
-        const env = detectEnv()
-        const plan = updateCommand(env)
-        if (!plan) {
-          res.writeHead(400, { 'content-type': 'application/json' })
-          res.end(JSON.stringify({ ok: false, error: '环境未知, 请复制 npm 命令手动更新', npmCmd: 'npm i -g @deepseek-ai/dsh' }))
-          return
-        }
-        // detached: 独立会话, 输出重定向日志文件, unref 脱离 dsh 生命周期
-        const mk = 'mkdir -p ' + (process.env.HOME || '') + '/.cache; echo "=== dsh 更新开始 $(date) ===" > ' + UPDATE_LOG
-        const child = spawn('bash', ['-c', mk + '; ' + plan.cmd + ' ' + plan.args.join(' ') + ' >> ' + UPDATE_LOG + ' 2>&1; echo "=== 更新结束 exit=$? $(date) ===" >> ' + UPDATE_LOG], {
-          detached: true,
-          stdio: 'ignore',
-          cwd: process.env.HOME || '/',
-        })
-        child.unref()
-        updatePid = child.pid || 0
-        res.writeHead(200, { 'content-type': 'application/json' })
-        res.end(JSON.stringify({ ok: true, running: true, pid: updatePid }))
-      } catch (error) {
-        res.writeHead(500, { 'content-type': 'application/json' })
-        res.end(JSON.stringify({ ok: false, error: String(error) }))
-      }
-    },
-  })
-  // 读更新日志(增量): ?offset=N → { log: 增量文本, offset, running, exit }
-  // 前端轮询此端点流式显示终端; 检测到 "更新结束" 行判断完成
-  ctx.webServer.register({
-    kind: 'exact',
-    path: '/api/dsh-update-log',
-    handler: (req, res) => {
-      try {
-        const u = new URL(req.url, 'http://x')
-        const offset = parseInt(u.searchParams.get('offset') || '0', 10) || 0
-        let txt = ''
-        let size = 0
-        try {
-          const st = statSync(UPDATE_LOG)
-          size = st.size
-          if (size > offset) {
-            txt = readFileSync(UPDATE_LOG, { encoding: 'utf8', flag: 'r' }).slice(Math.max(0, offset))
-          }
-        } catch (e) {}
-        const running = updatePid > 0
-        res.writeHead(200, { 'content-type': 'application/json' })
-        res.end(JSON.stringify({ log: txt, offset: size, running }))
-      } catch (error) {
-        res.writeHead(500, { 'content-type': 'application/json' })
-        res.end(JSON.stringify({ error: String(error) }))
-      }
-    },
-  })
-
 
   // 目录列表(移动版工作区选择器用, 走 host fs 绕开 connection inject)
   // 返回 parent(上一层路径) + hasRoot(能否列 / → root 权限)

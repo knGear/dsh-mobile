@@ -27,8 +27,7 @@
     "client.js",
     "index.d.ts",
     "cordis.patch.yml",
-    "dsh.plugin.json",
-    "SKILL.md"
+    "dsh.plugin.json"
   ],
   "scripts": {
     "check": "node --check index.js && node --check client.js"

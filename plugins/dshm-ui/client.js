@@ -346,7 +346,7 @@ window.__ModuleLoader__.load({
       return React.createElement('div', null,
         // 线框: 一级开关(纯净模式)骑在左上角边框上 — fieldset/legend 原生语义,
         // legend 透明自适应弹窗底色, 边框在 legend 处自动断开; 框内条目为二级
-        // 引导页/拉起浏览器在底部操作区(与版本检查同级), 顶部结构 Web/APK 一致
+        // 引导页/拉起浏览器在底部操作区, 顶部结构 Web/APK 一致
         React.createElement('fieldset', {
           style: { border: boxBorder, borderRadius: 12, padding: '18px 14px 12px', marginTop: 8, minWidth: 0, width: '100%', boxSizing: 'border-box' },
         },
@@ -396,7 +396,7 @@ window.__ModuleLoader__.load({
           ),
         ),
         // 底部操作区(APK only: 引导页 + 拉起浏览器; 浏览器无 dshm:// 协议与系统浏览器桥)
-        // 与版本检查同级, 线框之外 → 顶部结构 Web/APK 一致, 降低两者视觉区别
+        // 线框之外 → 顶部结构 Web/APK 一致, 降低两者视觉区别
         IS_DSHM ? React.createElement('div', {
           style: { marginTop: 18, paddingTop: 12, borderTop: '1px solid rgba(255,255,255,.1)' },
         },
