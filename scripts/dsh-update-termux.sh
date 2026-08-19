@@ -2,16 +2,22 @@
 # dsh-update-termux.sh — Termux 原生快速更新(仅核心: npm + 原生模块修补 + wrapper)
 # 跳过: pkg update/upgrade(工具链已装) / SELinux patch(幂等无需重跑) / 插件安装 / 启动验证
 # 用时: koffi 编译最耗时(约 2-5 分钟), 其余秒级
+# 用法: bash dsh-update-termux.sh [版本]  (默认 latest; 例: bash dsh-update-termux.sh 0.1.0-rc.6)
 set -euo pipefail
 P='[dsh更新]'
+VER="${1:-}"  # 可选版本参数
 
 if [ -z "${PREFIX:-}" ] || [ ! -d "$PREFIX" ]; then
   echo "$P 错误: 请在 Termux 环境中运行 (缺少 $PREFIX)"
   exit 1
 fi
 
-echo "$P 1/5 安装 @deepseek-ai/dsh (--ignore-scripts)..."
-npm i -g @deepseek-ai/dsh --ignore-scripts
+echo "$P 1/5 安装 @deepseek-ai/dsh${VER:+@$VER} (--ignore-scripts)..."
+if [ -n "$VER" ]; then
+  npm i -g "@deepseek-ai/dsh@$VER" --ignore-scripts
+else
+  npm i -g @deepseek-ai/dsh --ignore-scripts
+fi
 
 P=$PREFIX/lib/node_modules/@deepseek-ai/dsh/node_modules
 
