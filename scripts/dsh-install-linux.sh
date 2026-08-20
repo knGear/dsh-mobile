@@ -124,11 +124,11 @@ EOF
 chmod +x "$PREFIX/bin/dsh-web"
 echo "$P 已生成启动命令: dsh-web"
 
-# dsh-web-restart: 重启 dsh web (由 mobile-ui 插件 /api/dsh-restart 调用, 侧栏长按重启)
+# dsh-web-restart: 重启 dsh web (由 dsh-mobile-ui 插件 /api/dsh-restart 调用, 侧栏长按重启)
 # proot 版: 进 ubuntu 杀 node web 进程 + 等端口释放 + 重新拉起。
 cat > "$PREFIX/bin/dsh-web-restart" <<'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
-# dsh-web-restart (proot): 重启 dsh web — 由 mobile-ui 插件 /api/dsh-restart 调用
+# dsh-web-restart (proot): 重启 dsh web — 由 dsh-mobile-ui 插件 /api/dsh-restart 调用
 sleep 1
 proot-distro login ubuntu -- bash -c '
   PID=$(pgrep -f "^node .*lib/bin\.js web" | head -1)
@@ -188,45 +188,15 @@ echo "================ 安装完成 ================"
 echo "启动:   dsh-web         (Termux 里直接执行)"
 echo "访问:   手机浏览器打开 http://127.0.0.1:3080  填 API key"
 echo "升级:   proot-distro login ubuntu -- npm i -g @deepseek-ai/dsh@latest"
-echo "插件:   已随本脚本装好 (mobile-ui / mobile-AndroidNotify), 重启 dsh 后生效"
+echo "插件:   dsh-mobile-ui 就绪 (重启 dsh 后生效)"
 echo "==========================================="
 
-# ---------- 8. 安装移动端插件 (dsh-mobile 仓库) ----------
-echo "$P 8/8 安装移动端插件 (mobile-ui / mobile-AndroidNotify)..."
-PLUGIN_DIR="$HOME/.dsh/profiles/node_modules"
-PATCH_FILE="$HOME/.dsh/profiles/web/cordis.patch.yml"
-BASE="https://raw.githubusercontent.com/knGear/dsh-mobile/main/plugins"
-mkdir -p "$PLUGIN_DIR/mobile-ui" "$PLUGIN_DIR/mobile-AndroidNotify" "$(dirname "$PATCH_FILE")"
-for name in mobile-ui mobile-AndroidNotify; do
-  for f in index.js client.js package.json; do
-    if curl -fsSL -o "$PLUGIN_DIR/$name/$f" "$BASE/$name/$f"; then
-      echo "  $name/$f ✓"
-    else
-      echo "  $name/$f 下载失败 ⚠️"
-    fi
-  done
-done
-# cordis.patch.yml 挂载(不存在则创建, 存在则按 id 去重追加)
-if [ ! -f "$PATCH_FILE" ]; then
-  cat > "$PATCH_FILE" <<'PATCH'
-# 移动端本地插件
-- insert:
-    - id: mobile-notify
-      name: 'mobile-AndroidNotify'
-    - id: mobile-ui
-      name: 'mobile-ui'
-PATCH
-  echo "  已生成 $PATCH_FILE"
+# ---------- 8. 安装移动端插件 (dsh-mobile-ui) ----------
+echo "$P 8/8 安装移动端插件 (dsh-mobile-ui)..."
+BASE="https://raw.githubusercontent.com/knGear/dsh-mobile/main"
+if curl -fsSL -o "$HOME/.cache/install-dsh-mobile-ui.sh" "$BASE/scripts/install-dsh-mobile-ui.sh"; then
+  bash "$HOME/.cache/install-dsh-mobile-ui.sh"
 else
-  for id in mobile-notify mobile-ui; do
-    if ! grep -q "id: $id" "$PATCH_FILE"; then
-      case $id in
-        mobile-notify) pname='mobile-AndroidNotify' ;;
-        *) pname='mobile-ui' ;;
-      esac
-      printf '\n- insert:\n    - id: %s\n      name: %s\n' "$id" "$pname" >> "$PATCH_FILE"
-      echo "  已挂载 $id"
-    fi
-  done
+  echo "$P   install-dsh-mobile-ui.sh 下载失败 ⚠️ (插件未装, 可稍后手动: bash <(curl -fsSL $BASE/scripts/install-dsh-mobile-ui.sh))"
 fi
 echo "  插件就绪(重启 dsh 后生效)"

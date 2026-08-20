@@ -1,4 +1,4 @@
-// dshm-ui host 侧 — 移动设置面板所需端点(仅壳内使用, 不影响 dsh 本体行为)
+// dsh-mobile-ui host 侧 — 移动设置面板所需端点(仅壳内使用, 不影响 dsh 本体行为)
 //
 // 职责边界: 本插件只做移动适配(移动设置面板/目录选择器/session log 开关)。
 //           无任何 restart/reload/update 能力 —— 在 dsh 内杀进程/跑更新太危险,
@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process'
 import { readdirSync, statSync, mkdirSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
-const name = 'dshm-ui'
+const name = 'dsh-mobile-ui'
 const inject = ['webServer', 'loader']
 
 const ORIGINAL_URL = 'http://127.0.0.1:3080/?plain=1'

@@ -134,7 +134,7 @@ release.keystore          # 发布签名(alias dshmobile, 密码随仓库公开�
 icon-master.svg           # 图标源
 plugins/
   cordis.patch.yml        # 插件挂载示例
-  dshm-ui/                # 移动 UI 插件(UA门控/移动设置/目录选择器/界面适配)
+  dsh-mobile-ui/                # 移动 UI 插件(UA门控/移动设置/目录选择器/界面适配)
   # dsh-agenttask 有独立仓库 1.0, 不在此管理
 task.md                   # task 相关处理记录(重启包装脚本等)
 START.md                  # 移动端体验需求规格(跑分题原文)

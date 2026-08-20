@@ -1,0 +1,12 @@
+{
+  "id": "dsh-mobile-ui",
+  "version": "0.1.0",
+  "main": "./plugins/dsh-mobile-ui/index.js",
+  "client": {
+    "main": "./plugins/dsh-mobile-ui/client.js",
+    "inject": ["slots"]
+  },
+  "engines": {
+    "dsh": ">=0.0.1"
+  }
+}

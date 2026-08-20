@@ -151,12 +151,12 @@ command -v termux-open-url >/dev/null && termux-open-url "\$URL"
 EOF
 chmod +x "$PREFIX/bin/dsh-web"
 
-# dsh-web-restart: 重启 dsh web (由 mobile-ui 插件 /api/dsh-restart 调用, 侧栏长按重启)
+# dsh-web-restart: 重启 dsh web (由 dsh-mobile-ui 插件 /api/dsh-restart 调用, 侧栏长按重启)
 # 脱钩后台执行: sleep 1 让当前 HTTP 响应先返回, 再杀旧进程起新进程。
 # 用 ^node 锚点 + 等端口释放, 修复 pgrep -f 自匹配导致的 EADDRINUSE。
 cat > "$PREFIX/bin/dsh-web-restart" <<EOF
 #!/data/data/com.termux/files/usr/bin/bash
-# dsh-web-restart: 重启 dsh web (由 mobile-ui 插件 /api/dsh-restart 调用)
+# dsh-web-restart: 重启 dsh web (由 dsh-mobile-ui 插件 /api/dsh-restart 调用)
 BIN=$PREFIX/lib/node_modules/@deepseek-ai/dsh/lib/bin.js
 LOG="\\$HOME/.cache/dsh-web.log"
 sleep 1
@@ -210,41 +210,11 @@ echo "注意:   dsh 带 bash 执行/文件读写等强权限工具, 仅自用"
 echo "==========================================="
 
 # ---------- 9. 安装移动端插件 (dsh-mobile 仓库) ----------
-echo "$P 9/9 安装移动端插件 (mobile-ui / mobile-AndroidNotify)..."
-PLUGIN_DIR="$HOME/.dsh/profiles/node_modules"
-PATCH_FILE="$HOME/.dsh/profiles/web/cordis.patch.yml"
-BASE="https://raw.githubusercontent.com/knGear/dsh-mobile/main/plugins"
-mkdir -p "$PLUGIN_DIR/mobile-ui" "$PLUGIN_DIR/mobile-AndroidNotify" "$(dirname "$PATCH_FILE")"
-for name in mobile-ui mobile-AndroidNotify; do
-  for f in index.js client.js package.json; do
-    if curl -fsSL -o "$PLUGIN_DIR/$name/$f" "$BASE/$name/$f"; then
-      echo "  $name/$f ✓"
-    else
-      echo "  $name/$f 下载失败 ⚠️"
-    fi
-  done
-done
-if [ ! -f "$PATCH_FILE" ]; then
-  cat > "$PATCH_FILE" <<'PATCH'
-# 移动端本地插件
-- insert:
-    - id: mobile-notify
-      name: 'mobile-AndroidNotify'
-    - id: mobile-ui
-      name: 'mobile-ui'
-PATCH
-  echo "  已生成 $PATCH_FILE"
+echo "$P 9/9 安装移动端插件 (dsh-mobile-ui)..."
+BASE="https://raw.githubusercontent.com/knGear/dsh-mobile/main"
+if curl -fsSL -o "$HOME/.cache/install-dsh-mobile-ui.sh" "$BASE/scripts/install-dsh-mobile-ui.sh"; then
+  bash "$HOME/.cache/install-dsh-mobile-ui.sh"
 else
-  for id in mobile-notify mobile-ui; do
-    if ! grep -q "id: $id" "$PATCH_FILE"; then
-      case $id in
-        mobile-notify) pname='mobile-AndroidNotify' ;;
-        *) pname='mobile-ui' ;;
-      esac
-      printf '\n- insert:\n    - id: %s\n      name: %s\n' "$id" "$pname" >> "$PATCH_FILE"
-      echo "  已挂载 $id"
-    fi
-  done
+  echo "$P   install-dsh-mobile-ui.sh 下载失败 ⚠️ (插件未装, 可稍后手动: bash <(curl -fsSL $BASE/scripts/install-dsh-mobile-ui.sh))"
 fi
-echo "  插件就绪(重启 dsh 后生效)"
-echo "插件:   已随本脚本装好 (mobile-ui / mobile-AndroidNotify)"
+echo "插件:   dsh-mobile-ui 就绪 (重启 dsh 后生效)"

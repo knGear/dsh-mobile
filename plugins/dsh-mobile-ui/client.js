@@ -1,15 +1,15 @@
-// dshm-ui — dshm 壳专属移动 UI 注入
+// dsh-mobile-ui — dshm 壳专属移动 UI 注入
 //
 // 哲学: dsh 本体绝对纯净; 本插件经官方 slots API 注册, 壳内(UA 含 DSHM/)或网页 /m 路径激活。
 // 职责边界: 本插件只做移动适配(移动设置面板/目录选择器/界面适配 CSS)。
 //           无任何 restart/reload 能力(危险, 调用不准确会杀 dsh; 属 task 插件职责)。
 window.__ModuleLoader__.load({
-  id: 'dshm-ui',
+  id: 'dsh-mobile-ui',
   factory: (require) => {
     var module = { exports: {} }
     var exports = module.exports
 
-    var name = 'dshm-ui'
+    var name = 'dsh-mobile-ui'
     var inject = ['slots']
     var IS_DSHM = /DSHM\//.test(navigator.userAgent)
     // 移动入口: 壳内(UA 带 DSHM/) 或 网页 /m 路径(浏览器加 /m 进移动版)
@@ -462,9 +462,9 @@ window.__ModuleLoader__.load({
       // 同 !important 下后注入者胜出 → 插件样式被覆盖(Agent预设被截断/换行)。
       // MutationObserver 监听 head 子树变化, style 被移除或非末尾时重新追加(末尾 = 最高优先)
       var ensureStyle = function () {
-        var s = document.getElementById('dshm-ui-style')
+        var s = document.getElementById('dsh-mobile-ui-style')
         if (!s) {
-          s = document.createElement('style'); s.id = 'dshm-ui-style'; s.textContent = css
+          s = document.createElement('style'); s.id = 'dsh-mobile-ui-style'; s.textContent = css
           document.head.appendChild(s)
         } else if (s.textContent !== css) {
           s.textContent = css
