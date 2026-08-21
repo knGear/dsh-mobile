@@ -1,27 +1,27 @@
 {
-  "name": "dshm-ui",
+  "name": "dsh-mobile-ui",
   "version": "0.1.0",
   "type": "module",
-  "main": "plugins/dshm-ui/index.js",
-  "types": "plugins/dshm-ui/index.d.ts",
+  "main": "plugins/dsh-mobile-ui/index.js",
+  "types": "plugins/dsh-mobile-ui/index.d.ts",
   "description": "dshm 壳专属移动 UI: UA 识别(仅 DSHM 壳激活), 移动设置面板 + 目录选择器 + 界面适配 CSS",
   "keywords": ["dsh", "dsh-plugin", "mobile", "ui", "plugin"],
   "exports": {
     ".": {
-      "types": "./plugins/dshm-ui/index.d.ts",
-      "default": "./plugins/dshm-ui/index.js"
+      "types": "./plugins/dsh-mobile-ui/index.d.ts",
+      "default": "./plugins/dsh-mobile-ui/index.js"
     },
-    "./client": "./plugins/dshm-ui/client.js",
-    "./cordis.patch.yml": "./plugins/dshm-ui/cordis.patch.yml",
+    "./client": "./plugins/dsh-mobile-ui/client.js",
+    "./cordis.patch.yml": "./plugins/dsh-mobile-ui/cordis.patch.yml",
     "./package.json": "./package.json"
   },
-  "files": ["plugins/dshm-ui"],
+  "files": ["plugins/dsh-mobile-ui"],
   "scripts": {
-    "check": "node --check plugins/dshm-ui/index.js && node --check plugins/dshm-ui/client.js"
+    "check": "node --check plugins/dsh-mobile-ui/index.js && node --check plugins/dsh-mobile-ui/client.js"
   },
   "dsh": {
     "bundle": {
-      "patch": "./plugins/dshm-ui/cordis.patch.yml"
+      "patch": "./plugins/dsh-mobile-ui/cordis.patch.yml"
     },
     "client": {
       "inject": ["slots"],
